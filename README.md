@@ -2,7 +2,7 @@
 
 **MSFS 2024 toolbar panel: a Soviet-style autopilot for aircraft that have none (made for the An-28).**
 
-[English](#english) · [Polski](#polski) · [Русский](#русский)
+**[English](#english) · [Polski](#polski) · [Русский](#русский)** · 📋 **[Changelog / Historia zmian / История изменений](CHANGELOG.md)**
 
 | Soviet cockpit skin | AP-28L1 replica skin |
 |---|---|
