@@ -2,6 +2,12 @@
 
 (po polsku / in Polish)
 
+## 1.15.0
+
+- ruszenie przepustnica wylacza caly AP (napis "АП ОТКЛ: РУД"): przesuniecie dzwigni o ponad
+  5% od chwili wlaczenia AP (os, kilka wcisniec F2/F3, mysz). Z wlaczonym АТ ruch pilota
+  wykrywa АТ i wylacza wtedy АТ i AP. Opcja: AP_CONFIG.throttleDisconnectsAP / throttleApDiff.
+
 ## 1.14.1
 
 - naprawa VOR / ILS: w MSFS 2024 wyniki szukania najblizszych stacji przychodza osobnym

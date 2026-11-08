@@ -24,6 +24,7 @@ AP-28 Autopilot Panel is a toolbar panel for **Microsoft Flight Simulator 2024**
   - ВС (vertical speed)
   - НВУ (navigation)
   - Automatic disconnect, with КУРС-КРЕН and ТАНГАЖ warning lamps
+  - Moving the throttle disconnects the autopilot (АП ОТКЛ: РУД)
 - **НВУ navigation source switch** (ИСТ НВУ): МАРШ (route from the EFB, including SID/STAR points), АРК (ADF/NDB) or VOR.
 - **Built-in virtual VOR receiver**
   - Finds stations in the sim's navigation database, then calculates radial and distance.
@@ -91,6 +92,7 @@ AP-28 Autopilot Panel to panel do paska narzędzi **Microsoft Flight Simulator 2
   - ВС (prędkość pionowa)
   - НВУ (nawigacja)
   - Automatyczne odłączenie z lampkami КУРС-КРЕН i ТАНГАЖ
+  - Ruch przepustnicy wyłącza autopilota (АП ОТКЛ: РУД)
 - **Przełącznik źródła НВУ** (ИСТ НВУ): МАРШ (trasa z EFB, także punkty SID/STAR), АРК (NDB) albo VOR.
 - **Wbudowany wirtualny odbiornik VOR**
   - Szuka stacji w bazie nawigacyjnej symulatora, potem liczy radial i odległość.
@@ -158,6 +160,7 @@ AP-28 Autopilot Panel — панель для панели инструмент�
   - ВС (вертикальная скорость)
   - НВУ (навигация)
   - Автоматическое отключение с табло КУРС-КРЕН и ТАНГАЖ
+  - Перемещение РУД отключает автопилот (АП ОТКЛ: РУД)
 - **Переключатель источника НВУ** (ИСТ НВУ): МАРШ (маршрут из EFB, включая точки SID/STAR), АРК или VOR.
 - **Встроенный виртуальный приёмник VOR**
   - Ищет станции в навигационной базе симулятора, затем вычисляет радиал и дальность.

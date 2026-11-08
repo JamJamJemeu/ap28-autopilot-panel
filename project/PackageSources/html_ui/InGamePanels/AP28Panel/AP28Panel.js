@@ -129,6 +129,10 @@ const AP_CONFIG = {
     // Dziala, gdy program Mad Doga z wtyczka jest uruchomiony (nawet przy wylaczonym \u0421\u0412\u042f\u0417\u042c).
     fileLog: true,
 
+    // ruszenie przepustnica wylacza caly AP (os, klawisze F2/F3, mysz); false = AP nie reaguje na przepustnice
+    throttleDisconnectsAP: true,
+    throttleApDiff: 0.05,       // przesuniecie dzwigni (0..1) od chwili wlaczenia AP, ktore wylacza AP
+
     link: {                     // polaczenie z wtyczka AP-28 do Stream Panel GK150 / Stream Dock (klawisze na zewnetrznym panelu)
         enabled: true,
         url: "http://127.0.0.1:28650/ap28",   // tez probowane: http://localhost:28650/ap28, zapytania GET i fetch()
@@ -256,6 +260,7 @@ const AP_LABELS = {
     discStall: "\u0410\u041f \u041e\u0422\u041a\u041b: \u0421\u0412\u0410\u041b\u0418\u0412\u0410\u041d\u0418\u0415", discOver: "\u0410\u041f \u041e\u0422\u041a\u041b: \u0421\u041a\u041e\u0420\u041e\u0421\u0422\u042c",
     noSignal: "\u041d\u0415\u0422 \u0421\u0418\u0413\u041d\u0410\u041b\u0410", ndbPass: "\u041f\u0420\u041e\u041b\u0415\u0422 \u041f\u0420\u0418\u0412\u041e\u0414\u0410", vorPass: "\u041f\u0420\u041e\u041b\u0415\u0422 VOR", toFrom: ["\u041d\u0410", "\u041e\u0422"],   // NDB / VOR passage, TO / FROM
     apOn: "\u0410\u041f \u0412\u041a\u041b", apOff: "\u0410\u041f \u0412\u042b\u041a\u041b",   // AP on / off
+    apThr: "\u0410\u041f \u041e\u0422\u041a\u041b: \u0420\u0423\u0414",              // AP wylaczony ruchem przepustnicy
     lockOther: "\u0410\u041f: \u0414\u0420\u0423\u0413\u041e\u0415 \u041e\u041a\u041d\u041e",       // steruje drugi egzemplarz panelu (toolbar / EFB)
     shortLvl: "\u0413\u041e\u0420", shortHdg: "\u041a\u0423\u0420\u0421", shortAlt: "\u0412\u042b\u0421", shortVs: "\u0412\u0421",
     ft: "\u0424\u0422", ground: "\u041d\u0410 \u0417\u0415\u041c\u041b\u0415",       // ft / on ground
@@ -1071,7 +1076,7 @@ class AP28Panel extends AP28_BASE {
                 }
                 return;
             }
-            this.version = "AP-28 v1.14.1";
+            this.version = "AP-28 v1.15.0";
             this._buildSkin();
             if (this.skinOn) {
                 if (this.skinKind !== "an28") this._initListeners();
@@ -1533,6 +1538,7 @@ class AP28Panel extends AP28_BASE {
         try {
             this.readStates();
             try { this._lockTick(); } catch (e) { }
+            try { this._apThrTick(); } catch (e) { }
             this._anTick();
             try { this._alertTick(); } catch (e) { }
             try { this._ydTick(); } catch (e) { this.log("YD: " + e, "ERROR"); }
@@ -1707,6 +1713,23 @@ class AP28Panel extends AP28_BASE {
         this.disc.roll = false; this.disc.pitch = false; this.disc.t = {};   // wlaczenie AP gasi lampki
         this.log("AP ENGAGED");
         return true;
+    }
+
+    // AP bez \u0410\u0422: dzwignie stoja, wiec kazde ich przesuniecie od chwili wlaczenia AP to ruch pilota.
+    // (Z wlaczonym \u0410\u0422 ruch pilota wykrywa \u0410\u0422 i wylacza wtedy oba.)
+    _apThrTick() {
+        if (!this.apOn || this.atOn || AP_CONFIG.throttleDisconnectsAP === false) { this._apThr = null; return; }
+        const n = Math.max(1, AP_CONFIG.at.engines);
+        const lv = [];
+        for (let i = 1; i <= n; i++) lv.push((this._sv("GENERAL ENG THROTTLE LEVER POSITION:" + i, "percent") || 0) / 100);
+        if (!this._apThr) { this._apThr = { base: lv }; return; }
+        let dev = 0, at = 0;
+        lv.forEach((l, i) => { const d = Math.abs(l - this._apThr.base[i]); if (d > dev) { dev = d; at = i; } });
+        if (dev > (AP_CONFIG.throttleApDiff || 0.05)) {
+            this.log("AP: pilot ruszyl przepustnica " + (at + 1) + " (" + Math.round(this._apThr.base[at] * 100) + "% -> " + Math.round(lv[at] * 100) + "%)");
+            this._apThr = null;
+            this.disengage(AP_LABELS.apThr);
+        }
     }
 
     disengage(reason) {
@@ -2850,6 +2873,7 @@ class AP28Panel extends AP28_BASE {
             if (Math.abs(d) > C.overrideDiff || Math.abs(A.acc) > (C.overrideSum || 0.06)) {
                 this.log("AT: pilot ruszyl przepustnica (dzwignia " + Math.round(lever * 100) + "%, AT " + Math.round(A.w1 * 100) + "%)");
                 this._atOff(AP_LABELS.atPilot);
+                if (this.apOn && AP_CONFIG.throttleDisconnectsAP !== false) this.disengage(AP_LABELS.apThr);
                 return;
             }
         }
