@@ -1,181 +1,371 @@
-# Historia zmian / Changelog
+# Changelog · Historia zmian · История изменений
 
-(po polsku / in Polish)
+**[English](#english) · [Polski](#polski) · [Русский](#русский)**
 
-## 1.15.0
+Versions follow [Semantic Versioning](https://semver.org/). The ready-to-use package for each version is on the **Releases** page. The optional stream-deck companion plugin mentioned in some entries is not part of this repository.
 
-- ruszenie przepustnica wylacza caly AP (napis "АП ОТКЛ: РУД"): przesuniecie dzwigni o ponad
-  5% od chwili wlaczenia AP (os, kilka wcisniec F2/F3, mysz). Z wlaczonym АТ ruch pilota
-  wykrywa АТ i wylacza wtedy АТ i AP. Opcja: AP_CONFIG.throttleDisconnectsAP / throttleApDiff.
+---
 
-## 1.14.1
+## English
 
-- naprawa VOR / ILS: w MSFS 2024 wyniki szukania najblizszych stacji przychodza osobnym
-  zdarzeniem (NearestSearchCompleted), a panel czekal na nie w odpowiedzi - dlatego zawsze
-  "w pamieci 0" i НЕТ СИГНАЛА. Teraz panel odbiera to zdarzenie.
+### 1.15.0 – 2026-11-08
+#### Added
+- **Moving the throttle disconnects the autopilot (АП ОТКЛ: РУД).** A lever movement of more than 5% since AP engagement turns AP off: an axis, several F2/F3 presses, or the mouse. A single small key tap is ignored.
+- With АТ engaged, АТ detects the pilot's input and then disconnects both АТ and AP.
+- Options: `AP_CONFIG.throttleDisconnectsAP` (on/off), `throttleApDiff` (sensitivity, default 0.05).
 
-## 1.14.0
+#### Fixed
+- The source project's `project/PackageDefinitions/ap28-autopilot-panel.xml` was empty, so the project could not be built in Developer Mode. The ready package was not affected.
 
-- caly log panelu zapisuje sie do pliku ap28panel.log w folderze wtyczki Stream Panel
-  (...\plugins\pl.jamjam.ap28.sdPlugin\). Dziala, gdy program Mad Doga jest uruchomiony,
-  takze przy wylaczonym СВЯЗЬ. Okno logu w grze nie musi byc wlaczone. Poprzedni lot zostaje
-  jako ap28panel.old.log. Wylaczenie: AP_CONFIG.fileLog = false. Wymaga wtyczki 1.5.0.
+### 1.14.1 – 2026-11-08
+#### Fixed
+- **VOR and ILS stations are found again in MSFS 2024.** In MSFS 2024, nearest-station search results arrive in a separate event (`NearestSearchCompleted`), and the panel was waiting for them in the reply. The station list was always empty, so every VOR showed НЕТ СИГНАЛА. The panel now listens for that event.
 
-## 1.13.2
+### 1.14.0 – 2026-11-08
+#### Added
+- **The whole panel log can be saved to a file** (`ap28panel.log`) through the companion plugin. This works even with the in-game log window closed. Turn it off with `AP_CONFIG.fileLog = false`.
 
-- VOR: zwykle wyszukiwanie stacji znow bez filtra (filtr dla ILS mogl w grze odcinac wszystkie
-  stacje); ILS szukany w osobnej sesji.
-- log VOR co 5 s (gdy ИСТ НВУ = VOR): czestotliwosc, sygnal, ile stacji w pamieci, najblizsze
-  stacje z czestotliwosciami. Kazde wyszukiwanie: "VOR: wyszukiwanie nr N: nowych ...".
+### 1.13.2 – 2026-11-08
+#### Changed
+- The regular VOR search runs again without a filter, because the ILS filter could hide every station in the game. ILS is searched in a separate session.
 
-## 1.13.1
+#### Added
+- **VOR log every 5 s** (when ИСТ НВУ is on VOR): frequency, signal, number of stations in memory, nearest stations with their frequencies. Every search is logged too.
 
-- ILS (КРМ) na VOR: gdy czestotliwosc jest z pasma ILS (108.10-111.95, nieparzyste dziesiate)
-  i wyszukiwanie stacji go nie znalazlo, panel sprawdza lotniska w promieniu 40 NM i bierze ILS
-  z danych pasow (czestotliwosc pasa, antena za koncem pasa, kurs pasa). Log: "ILS: EPRZ - 1 KRM".
+### 1.13.1 – 2026-11-07
+#### Added
+- **ILS from runway data.** When the frequency is in the ILS band (108.10–111.95, odd tenths) and the station search finds nothing, the panel checks airports within 40 NM. It takes the ILS from the runway data: frequency, antenna beyond the runway end, runway course.
 
-## 1.13.0
+### 1.13.0 – 2026-11-07
+#### Fixed
+- **Moving the throttle now disconnects АТ (АТ ОТКЛ: РУД).** АТ used to overwrite the pilot's input, so it never let go.
 
-- ruszenie przepustnica wylacza АТ (napis "АТ ОТКЛ: РУД"): skok osi, kilka wcisniec F2/F3
-  albo przesuniecie dzwigni mysza. Wczesniej AT nadpisywal ruch pilota i sie nie wylaczal.
-  Pojedyncze, male stukniecie klawiszem jest ignorowane.
-- opcja: Shift + klik na АТ wlacza / wylacza te funkcje ("РУД ОТКЛ АТ: ВКЛ / ВЫКЛ"),
-  zapamietywane. W AP28Panel.js: AP_CONFIG.at.pilotOverride, overrideDiff, overrideSum.
+#### Added
+- **Shift + click on АТ** turns this behaviour on or off (РУД ОТКЛ АТ: ВКЛ / ВЫКЛ). The setting is remembered.
 
-## 1.12.2
+### 1.12.0 – 2026-11-07
+#### Changed
+- **Changing a value resets the lower digits.** For example, changing the tens of 3977 gives 3980 or 3970, and changing the hundreds gives 4000 or 3900. This applies to altitude, heading, ЗК, VS, АТ speed, OBS/ЗПУ, frequencies, ВЭМ-72 pressure and the ОПАСН. ВЫС. threshold.
 
-- diagnostyka Stream Panel: kazde polecenie z Mad Doga trafia do logu panelu ze skutkiem
-  (np. "polecenie ap -> AP ON LVL/LVL" albo "NA ZIEMI - AP sie nie wlacza"), a panel
-  odsyla wtyczce licznik wykonanych polecen.
+#### Removed
+- The AP-28 app for the EFB tablet. The panel lives only in the toolbar.
 
-## 1.12.1
+### 1.11.0 – 2026-11-07
+#### Added
+- **The VOR receiver also receives ILS localizers (КРМ),** e.g. Rzeszów 110.30 (IRZ, runway 27). The КРМ course is fixed from the sim database and OBS does not change it. The display shows `КРМ IRZ 264`.
+- Flying over the КРМ antenna (beyond the runway end) does not flip НА to ОТ.
 
-- Stream Panel: klawisze Mad Doga nie dzialaly, choc odczyty szly (gra wysylala dane, ale nie
-  dawala panelowi przeczytac odpowiedzi z poleceniami). Panel uznaje polaczenie dopiero, gdy
-  odczyta odpowiedz, a jesli XHR nie pozwala - przechodzi na kanal <script> (JSONP).
-  Wymaga wtyczki Stream Panel 1.4.3.
+### 1.10.0 – 2026-11-07
+#### Added
+- AP-28 app on the EFB tablet (removed again in 1.12.0).
+- A lock so that two panel instances never control the aircraft at the same time.
 
-## 1.12.0
+### 1.9.0 – 2026-11-07
+#### Added
+- **ИСТ НВУ switch** (3 positions) in the АРК · VOR row: МАРШ (EFB route), АРК or VOR. It picks where НВУ takes its course from.
+- **SID and STAR points** chosen in the EFB flight plan are part of the route (`AP_CONFIG.nav.useProcedures`). Legs without coordinates (climb to altitude, vectors) are skipped.
 
-- zmiana wartosci zeruje nizsze cyfry: np. wysokosc 3977, zmiana dziesiatek -> 3980 / 3970,
-  setek -> 4000 / 3900. Dotyczy wysokosci, kursu, ZK, VS, predkosci AT, OBS/ZPU,
-  czestotliwosci, cisnienia VEM-72 i progu ОПАСН. ВЫС. (takze z Mad Doga).
-- usunieta aplikacja AP-28 z tabletu EFB - panel jest tylko w toolbarze.
+#### Removed
+- The separate VOR button (replaced by the ИСТ НВУ switch).
 
-## 1.11.1
+### 1.8.0 – 2026-11-07
+#### Added
+- **Built-in VOR receiver.** The panel finds a station on the selected frequency in the sim's navigation database, then calculates radial and distance. It works in aircraft without a NAV radio, such as the An-28. `AP_CONFIG.radio.vorMode = "sim"` switches back to the aircraft's NAV1.
+- **АТ autothrottle** (cyan button). It holds the current indicated airspeed. The mouse wheel over the button changes the speed (1 kt / 5 km/h, Shift ×10). A pilot lever movement or touchdown disconnects it.
 
-- panel wysyla do wtyczki Stream Panel informacje o sygnale zrodla NVU (ikona ИСТ НВУ, wtyczka 1.4.1).
+### 1.7.0 – 2026-11-07
+#### Added
+- An optional link to an external stream-deck plugin over `http://127.0.0.1:28650` (`AP_CONFIG.link`). The panel works fine without it.
 
-## 1.11.0
+### 1.6.2 – 2026-11-07
+#### Changed
+- ВЭМ-72 gets a black case, and the drum counter moved below the needle hub.
 
-- VOR odbiera tez ILS: kursowa radiolatarnia (КРМ), np. Rzeszow 110.30 (IRZ, pas 27).
-  Kurs КРМ jest staly (z bazy symulatora) - OBS go nie zmienia; na wyswietlaczu "КРМ IRZ 264".
-  Wczesniej wyszukiwanie stacji pomijalo ILS, stad НЕТ СИГНАЛА.
-- przelot nad КРМ (koniec pasa) nie przelacza NA -> OT.
-- wspolpraca z wtyczka Stream Panel 1.4.0: nowe odczyty (przyrzady, punkt trasy, wiatr, czas,
-  paliwo...), klawisze radia (NA/OT, czestotliwosc, OBS) i wylaczanie polaczenia klawiszem СВЯЗЬ.
+#### Added
+- A green ДЕМПФ annunciator at the top of the panel. It is lit while the yaw damper works.
 
-## 1.10.0
+### 1.6.0 – 2026-11-07
+#### Added
+- **ОПАСН. ВЫС. lamp** (red): radio altitude below the threshold (60 m by default). The mouse wheel over it changes the threshold by 10 m (Shift: 50 m).
+- **ЗАД. ВЫС. lamp** (amber): less than 1000 ft to the selected altitude. It flashes when the aircraft drifts more than 200 ft away from it.
+- **ДЕМПФ yaw damper:** the rudder trim keeps the slip ball centred. It also works with AP off, in the air above 60 kt, and corrects its own direction if it starts working the wrong way.
 
-- aplikacja "AP-28" na tablecie EFB (MSFS 2024): ten sam panel (oba wyglady, VEM-72, NVU,
-  AT, DEMPF, Stream Panel) otwierany na tablecie w kabinie. Panel w toolbarze dziala dalej.
-  Pliki: html_ui\efb_ui\efb_apps\AP28Autopilot\.
-- blokada: panel z toolbara i aplikacja EFB nie steruja naraz. Steruje ten, w ktorym pierwszy
-  wlaczono AP / AT / DEMPF; w drugim wlaczenie konczy sie napisem "АП: ДРУГОЕ ОКНО".
-  Zmienne L:AP28_OWN, L:AP28_OWN_T, L:AP28_TB_T.
-- Stream Panel obsluguje egzemplarz, ktory steruje; gdy nikt nie steruje - panel z toolbara.
-- w EFB panel skaluje sie do szerokosci i wysokosci ekranu tabletu.
+### 1.5.0 – 2026-11-07
+#### Added
+- **НА / ОТ switch** in the АРК · VOR row: fly to or from an NDB or a VOR on a set course (ЗПУ / OBS).
+- After passing over the station, the switch flips to ОТ by itself (`AP_CONFIG.radio.autoFrom`).
 
-## 1.9.0
+### 1.4.0 – 2026-11-07
+#### Added
+- **ВЭМ-72 altimeter** built into the panel in both skins: metres or feet (ЕД. button), a smoothly rolling drum counter, and a pressure window in mmHg or hPa. The wheel adjusts the pressure, and a click sets local pressure.
 
-- przelacznik ИСТ НВУ (3 polozenia) w wierszu ARK - VOR: MARSH (trasa z EFB) / ARK / VOR -
-  skad NVU bierze kierunek; klik w gorna / srodkowa / dolna czesc albo kolko. Przycisk VOR usuniety.
-- trasa z EFB zawiera punkty SID i STAR wybrane w planie lotu (AP_CONFIG.nav.useProcedures);
-  punkty bez wspolrzednych (np. wznoszenie do wysokosci, wektory) sa pomijane.
+### 1.3.0 – 2026-11-07
+#### Added
+- Window header buttons (minimise, undock, close).
+- The panel scales with the window width.
+- Altitude source can be chosen in `AP_CONFIG.altSimVar`.
 
-## 1.8.0
+#### Fixed
+- The heading needle rotates around the centre of the dial.
 
-- wlasny odbiornik VOR: panel sam szuka stacji VOR o ustawionej czestotliwosci w bazie
-  nawigacyjnej symulatora i liczy radial i odleglosc - dziala w samolotach bez radia NAV
-  (np. An-28). Czestotliwosc i OBS ustawia sie w wierszu ARK - VOR, ident stacji jest
-  na wyswietlaczu. AP_CONFIG.radio.vorMode = "sim" przywraca radio NAV1 samolotu.
-- AT (turkusowy przycisk; w AP-28L1 przycisk AT w stopce): automat ciagu - po wlaczeniu
-  utrzymuje obecna predkosc przyrzadowa przepustnica; kolko nad przyciskiem zmienia predkosc
-  (1 kt / 5 km/h, Shift x10). Ruszenie dzwignia przez pilota albo przyziemienie wylacza AT.
-  Ustawienia: AP_CONFIG.at (m.in. liczba silnikow, zakres przepustnicy).
+### 1.2.0
+#### Added
+- Clicking a digit of the altitude counter sets the arrow step (1 / 10 / 100 / 1000 / 10000), and the wheel over a digit changes that digit.
+- The ЕД. button switches altitude between feet and metres.
 
-Nowosci w 1.7.0 - 1.7.2 (odczyty dla wyswietlacza Stream Panelu, kilka sposobow laczenia + diagnostyka w logu)
----------------
-- polaczenie z zewnetrznym panelem (Stream Panel GK150 / Stream Dock) przez wtyczke
-  "AP-28 Autopilot" (osobna paczka): klawisze steruja autopilotem i swieca zgodnie z jego stanem;
-  panel laczy sie lokalnie z http://127.0.0.1:28650 (AP_CONFIG.link, enabled: false wylacza)
+### 1.1.0
+#### Added
+- Click or drag on the heading dial sets the heading (wheel ±1, Shift ±10).
+- Holding an arrow button changes the value continuously, faster and faster.
+- НВУ follows the route from the MSFS 2024 EFB.
 
-## 1.6.2
+### 1.0.0
+#### Added
+- First release of the toolbar autopilot panel in a Soviet cockpit style, with its own autopilot independent of the aircraft.
+- Modes: АП, ГОРИЗОНТ (wings level), КУРС (heading), ВЫСОТА (altitude hold), ВС (vertical speed), НВУ (navigation).
+- Automatic disconnect with КУРС-КРЕН and ТАНГАЖ lamps.
+- Two skins: a Soviet cockpit panel and a replica of the AP-28L1 control panel.
 
-- VEM-72: czarna obudowa, licznik bebnowy ponizej osi wskazowki
-- zielona kontrolka DEMPF u gory panelu: swieci, gdy tlumik odchylenia pracuje
-  (wlaczony, w powietrzu, powyzej 60 kt); klik w kontrolke tez go wlacza / wylacza
+---
 
-Nowosci w 1.6.0 / 1.6.1 (przyciski w dwoch rzedach, napisy mieszcza sie w guzikach)
----------------
-- lampka OPASN. VYS. (czerwona): radiowysokosciomierz pokazuje mniej niz ustawiony prog
-  (domyslnie 60 m); kolko nad lampka zmienia prog o 10 m (Shift: 50 m), klik pokazuje prog
-  i przestaje migac
-- lampka ZAD. VYS. (bursztynowa, w trybie VYSOTA): swieci, gdy do zadanej wysokosci zostalo
-  mniej niz 1000 ft, gasnie po dolocie; miga, gdy samolot odejdzie od niej o ponad 200 ft
-- przycisk DEMPF: tlumik odchylenia - trymer steru kierunku utrzymuje zerowy slizg
-  (kulka w srodku); dziala tez przy wylaczonym AP, w powietrzu powyzej 60 kt;
-  nie dziala w trybie UPR. TRIMM RN (ten tryb uzywa juz trymera steru kierunku);
-  jesli dziala w zla strone, sam to wykrywa i odwraca kierunek (AP_CONFIG.yd)
+## Polski
 
-## 1.5.0
+### 1.15.0 – 2026-11-08
+#### Dodano
+- **Ruch przepustnicą wyłącza autopilota (АП ОТКЛ: РУД).** Przesunięcie dźwigni o ponad 5% od włączenia AP wyłącza AP: osią, kilkoma wciśnięciami F2/F3 albo myszą. Pojedyncze, małe stuknięcie klawiszem jest ignorowane.
+- Z włączonym АТ ruch pilota rozpoznaje АТ i wtedy wyłącza oba, АТ i AP.
+- Opcje: `AP_CONFIG.throttleDisconnectsAP` (wł./wył.), `throttleApDiff` (czułość, domyślnie 0.05).
 
-- przelacznik NA / OT w wierszu ARK - VOR
-  - ARK, NA: lot na radiolatarnie NDB (jak dotad)
-  - ARK, OT: lot od radiolatarni po linii ZPU; ZPU ustawia sie licznikiem obok
-    (przy przelaczeniu na OT przyjmuje obecny namiar od radiolatarni)
-  - VOR, NA: lot do stacji po linii OBS, z ktorejkolwiek strony stacji
-  - VOR, OT: lot od stacji kursem OBS
-  - po przelocie nad NDB / VOR przelacznik sam przechodzi na OT i samolot trzyma
-    dotychczasowy kurs (wylaczasz to w AP_CONFIG.radio.autoFrom)
+#### Naprawiono
+- Plik `project/PackageDefinitions/ap28-autopilot-panel.xml` w projekcie źródłowym był pusty, więc projektu nie dało się zbudować w trybie dewelopera. Gotowej paczki to nie dotyczyło.
 
-Nowosci w 1.4.0 / 1.4.1
----------------
-- wysokosciomierz VEM-72 wbudowany w panel (w obu widokach, panel nie robi sie szerszy),
-  przycisk VEM go chowa / pokazuje
-  - jednostki z przycisku ED.: metry (1 obrot wskazowki = 1000 m, cisnienie w mm Hg)
-    albo stopy (1 obrot = 1000 ft, cisnienie w hPa)
-  - licznik bebnowy przewija sie plynnie jak w prawdziwym przyrzadzie
-  - kolko nad okienkiem cisnienia: nastawa cisnienia +-1 (Shift +-10),
-    klik w okienko: cisnienie lokalne (jak klawisz B)
-  - pokazuje te sama wysokosc, co zrodlo AP_CONFIG.altSimVar
+### 1.14.1 – 2026-11-08
+#### Naprawiono
+- **Stacje VOR i ILS znowu są znajdowane w MSFS 2024.** W MSFS 2024 wyniki szukania najbliższych stacji przychodzą osobnym zdarzeniem (`NearestSearchCompleted`), a panel czekał na nie w odpowiedzi. Lista stacji była zawsze pusta, więc każdy VOR pokazywał НЕТ СИГНАЛА. Teraz panel odbiera to zdarzenie.
 
-## 1.3.0
+### 1.14.0 – 2026-11-08
+#### Dodano
+- **Cały log panelu może się zapisywać do pliku** (`ap28panel.log`) przez wtyczkę towarzyszącą. Działa też przy zamkniętym oknie logu w grze. Wyłączenie: `AP_CONFIG.fileLog = false`.
 
-- strzalka na tarczy kursu obraca sie wokol srodka tarczy
-- przyciski w naglowku okna (minimalizuj / odepnij / zamknij)
-- panel skaluje sie razem z szerokoscia okna (w obie strony)
-- zrodlo wysokosci do wyboru: AP_CONFIG.altSimVar
-  ("INDICATED ALTITUDE" = wysokosciomierz 1, "INDICATED ALTITUDE:2" = wysokosciomierz 2,
-   "PLANE ALTITUDE" = rzeczywista wysokosc nad poziomem morza)
-- log diagnostyczny po wlaczeniu pokazuje wysokosci ze wszystkich zrodel i nastawy cisnienia
+### 1.13.2 – 2026-11-08
+#### Zmieniono
+- Zwykłe szukanie VOR znowu działa bez filtra, bo filtr dla ILS mógł w grze ukryć wszystkie stacje. ILS jest szukany w osobnej sesji.
 
-## 1.2.0
+#### Dodano
+- **Log VOR co 5 s** (gdy ИСТ НВУ jest na VOR): częstotliwość, sygnał, liczba stacji w pamięci, najbliższe stacje z częstotliwościami. Każde wyszukiwanie też trafia do logu.
 
-- wysokosc: klik w cyfre licznika wybiera krok strzalek (1 / 10 / 100 / 1000 / 10000),
-  kolko nad cyfra zmienia te cyfre, Shift = krok x10
-- przycisk ED. przelacza wyswietlanie wysokosci: stopy (FT) / metry (M)
+### 1.13.1 – 2026-11-07
+#### Dodano
+- **ILS z danych pasów.** Gdy częstotliwość jest z pasma ILS (108.10–111.95, nieparzyste dziesiąte), a szukanie stacji nic nie znalazło, panel sprawdza lotniska w promieniu 40 NM. ILS bierze z danych pasa: częstotliwość, antena za końcem pasa, kurs pasa.
 
-## 1.1.0
+### 1.13.0 – 2026-11-07
+#### Naprawiono
+- **Ruch przepustnicą wyłącza teraz АТ (АТ ОТКЛ: РУД).** Wcześniej АТ nadpisywał ruch pilota i nigdy nie puszczał.
 
-- klik / przeciaganie na tarczy kursu ustawia kurs (kolko: +-1, Shift: +-10)
-- przytrzymanie przyciskow strzalek zmienia wartosc ciagle, coraz szybciej
-- NVU: trasa z EFB w MSFS 2024 (wspolrzedne punktow pobierane z bazy nawigacyjnej symulatora)
+#### Dodano
+- **Shift + klik na АТ** włącza lub wyłącza to zachowanie (РУД ОТКЛ АТ: ВКЛ / ВЫКЛ). Ustawienie jest zapamiętywane.
 
-Uwagi
------
-- Nastawy autopilota: AP_CONFIG na poczatku pliku
-  projekt\PackageSources\html_ui\InGamePanels\AP28Panel\AP28Panel.js (potem zbuduj od nowa).
-- Log diagnostyczny: przytrzymaj bursztynowy wyswietlacz ok. 1,5 s.
-- Nie zmieniaj plikow bezposrednio w Community - layout.json musi zgadzac sie z plikami,
-  dlatego zmiany rob w projekcie i buduj od nowa.
+### 1.12.0 – 2026-11-07
+#### Zmieniono
+- **Zmiana wartości zeruje niższe cyfry.** Na przykład zmiana dziesiątek przy 3977 daje 3980 albo 3970, a zmiana setek 4000 albo 3900. Dotyczy wysokości, kursu, ЗК, VS, prędkości АТ, OBS/ЗПУ, częstotliwości, ciśnienia ВЭМ-72 i progu ОПАСН. ВЫС.
+
+#### Usunięto
+- Aplikację AP-28 na tablecie EFB. Panel jest tylko w pasku narzędzi.
+
+### 1.11.0 – 2026-11-07
+#### Dodano
+- **Odbiornik VOR łapie też ILS, czyli kursowe radiolatarnie (КРМ),** np. Rzeszów 110.30 (IRZ, pas 27). Kurs КРМ jest stały, z bazy symulatora, i OBS go nie zmienia. Na wyświetlaczu widać `КРМ IRZ 264`.
+- Przelot nad anteną КРМ (za końcem pasa) nie przełącza НА na ОТ.
+
+### 1.10.0 – 2026-11-07
+#### Dodano
+- Aplikacja AP-28 na tablecie EFB (usunięta w 1.12.0).
+- Blokada, dzięki której dwa egzemplarze panelu nigdy nie sterują samolotem naraz.
+
+### 1.9.0 – 2026-11-07
+#### Dodano
+- **Przełącznik ИСТ НВУ** (3 położenia) w wierszu АРК · VOR: МАРШ (trasa z EFB), АРК albo VOR. Wybiera, skąd НВУ bierze kierunek.
+- **Punkty SID i STAR** wybrane w planie lotu EFB są częścią trasy (`AP_CONFIG.nav.useProcedures`). Odcinki bez współrzędnych (wznoszenie do wysokości, wektory) są pomijane.
+
+#### Usunięto
+- Osobny przycisk VOR (zastąpiony przełącznikiem ИСТ НВУ).
+
+### 1.8.0 – 2026-11-07
+#### Dodano
+- **Wbudowany odbiornik VOR.** Panel sam szuka w bazie nawigacyjnej symulatora stacji na ustawionej częstotliwości, a potem liczy radial i odległość. Działa w samolotach bez radia NAV, np. w An-28. `AP_CONFIG.radio.vorMode = "sim"` przywraca radio NAV1 samolotu.
+- **АТ, automat ciągu** (turkusowy przycisk). Utrzymuje obecną prędkość przyrządową. Kółko nad przyciskiem zmienia prędkość (1 kt / 5 km/h, Shift ×10). Ruch dźwigni przez pilota albo przyziemienie go wyłącza.
+
+### 1.7.0 – 2026-11-07
+#### Dodano
+- Opcjonalne połączenie z zewnętrzną wtyczką do stream decka przez `http://127.0.0.1:28650` (`AP_CONFIG.link`). Panel działa bez niej.
+
+### 1.6.2 – 2026-11-07
+#### Zmieniono
+- ВЭМ-72 ma czarną obudowę, a licznik bębnowy jest pod osią wskazówki.
+
+#### Dodano
+- Zielona kontrolka ДЕМПФ u góry panelu. Świeci, gdy tłumik odchylenia pracuje.
+
+### 1.6.0 – 2026-11-07
+#### Dodano
+- **Lampka ОПАСН. ВЫС.** (czerwona): wysokość radiowa poniżej progu (domyślnie 60 m). Kółko nad lampką zmienia próg o 10 m (Shift: 50 m).
+- **Lampka ЗАД. ВЫС.** (bursztynowa): do zadanej wysokości zostało mniej niż 1000 ft. Miga, gdy samolot odejdzie od niej o ponad 200 ft.
+- **ДЕМПФ, tłumik odchylenia:** trymer steru kierunku trzyma kulkę w środku. Działa też przy wyłączonym AP, w powietrzu powyżej 60 kt, i sam poprawia kierunek działania, jeśli zaczyna działać odwrotnie.
+
+### 1.5.0 – 2026-11-07
+#### Dodano
+- **Przełącznik НА / ОТ** w wierszu АРК · VOR: lot do albo od NDB lub VOR po zadanej linii (ЗПУ / OBS).
+- Po przelocie nad stacją przełącznik sam przechodzi na ОТ (`AP_CONFIG.radio.autoFrom`).
+
+### 1.4.0 – 2026-11-07
+#### Dodano
+- **Wysokościomierz ВЭМ-72** wbudowany w panel w obu wyglądach: metry albo stopy (przycisk ЕД.), płynnie przewijany licznik bębnowy i okienko ciśnienia w mm Hg albo hPa. Kółko zmienia ciśnienie, a klik ustawia ciśnienie lokalne.
+
+### 1.3.0 – 2026-11-07
+#### Dodano
+- Przyciski w nagłówku okna (minimalizuj, odepnij, zamknij).
+- Panel skaluje się razem z szerokością okna.
+- Źródło wysokości do wyboru w `AP_CONFIG.altSimVar`.
+
+#### Naprawiono
+- Wskazówka kursu obraca się wokół środka tarczy.
+
+### 1.2.0
+#### Dodano
+- Klik w cyfrę licznika wysokości wybiera krok strzałek (1 / 10 / 100 / 1000 / 10000), a kółko nad cyfrą zmienia tę cyfrę.
+- Przycisk ЕД. przełącza wysokość między stopami a metrami.
+
+### 1.1.0
+#### Dodano
+- Klik albo przeciąganie po tarczy kursu ustawia kurs (kółko ±1, Shift ±10).
+- Przytrzymanie przycisku strzałki zmienia wartość ciągle, coraz szybciej.
+- НВУ prowadzi po trasie z EFB w MSFS 2024.
+
+### 1.0.0
+#### Dodano
+- Pierwsze wydanie panelu autopilota w pasku narzędzi, w stylu radzieckiego kokpitu, z własnym autopilotem niezależnym od samolotu.
+- Tryby: АП, ГОРИЗОНТ (poziomowanie), КУРС (kurs), ВЫСОТА (utrzymanie wysokości), ВС (prędkość pionowa), НВУ (nawigacja).
+- Automatyczne odłączenie z lampkami КУРС-КРЕН i ТАНГАЖ.
+- Dwa wyglądy: radziecki pulpit i replika pulpitu AP-28L1.
+
+---
+
+## Русский
+
+### 1.15.0 – 2026-11-08
+#### Добавлено
+- **Перемещение РУД отключает автопилот (АП ОТКЛ: РУД).** Сдвиг рычага более чем на 5% после включения АП выключает АП: осью, несколькими нажатиями F2/F3 или мышью. Одно короткое нажатие клавиши не учитывается.
+- При включённом АТ вмешательство пилота распознаёт АТ и тогда отключает и АТ, и АП.
+- Настройки: `AP_CONFIG.throttleDisconnectsAP` (вкл./выкл.), `throttleApDiff` (чувствительность, по умолчанию 0.05).
+
+#### Исправлено
+- Файл `project/PackageDefinitions/ap28-autopilot-panel.xml` в исходном проекте был пустым, поэтому проект нельзя было собрать в режиме разработчика. Готовый пакет это не затрагивало.
+
+### 1.14.1 – 2026-11-08
+#### Исправлено
+- **Станции VOR и ILS снова находятся в MSFS 2024.** В MSFS 2024 результаты поиска ближайших станций приходят отдельным событием (`NearestSearchCompleted`), а панель ждала их в ответе. Список станций всегда был пуст, и любой VOR показывал НЕТ СИГНАЛА. Теперь панель принимает это событие.
+
+### 1.14.0 – 2026-11-08
+#### Добавлено
+- **Весь журнал панели может записываться в файл** (`ap28panel.log`) через сопутствующий плагин. Работает и при закрытом окне журнала в игре. Отключение: `AP_CONFIG.fileLog = false`.
+
+### 1.13.2 – 2026-11-08
+#### Изменено
+- Обычный поиск VOR снова работает без фильтра, потому что фильтр для ILS мог скрыть в игре все станции. ILS ищется в отдельном сеансе.
+
+#### Добавлено
+- **Журнал VOR каждые 5 с** (когда ИСТ НВУ на VOR): частота, сигнал, число станций в памяти, ближайшие станции с частотами. Каждый поиск тоже записывается.
+
+### 1.13.1 – 2026-11-07
+#### Добавлено
+- **ILS по данным ВПП.** Если частота из диапазона ILS (108.10–111.95, нечётные десятые), а поиск станций ничего не нашёл, панель проверяет аэродромы в радиусе 40 NM. ILS берётся из данных ВПП: частота, антенна за торцом ВПП, курс ВПП.
+
+### 1.13.0 – 2026-11-07
+#### Исправлено
+- **Перемещение РУД теперь отключает АТ (АТ ОТКЛ: РУД).** Раньше АТ перезаписывал действия пилота и не отключался.
+
+#### Добавлено
+- **Shift + щелчок по АТ** включает или выключает эту функцию (РУД ОТКЛ АТ: ВКЛ / ВЫКЛ). Настройка запоминается.
+
+### 1.12.0 – 2026-11-07
+#### Изменено
+- **При изменении значения младшие разряды обнуляются.** Например, изменение десятков у 3977 даёт 3980 или 3970, а изменение сотен — 4000 или 3900. Относится к высоте, курсу, ЗК, ВС, скорости АТ, OBS/ЗПУ, частотам, давлению ВЭМ-72 и порогу ОПАСН. ВЫС.
+
+#### Удалено
+- Приложение АП-28 для планшета EFB. Панель есть только на панели инструментов.
+
+### 1.11.0 – 2026-11-07
+#### Добавлено
+- **Приёмник VOR принимает и курсовые маяки ILS (КРМ),** например Жешув 110.30 (IRZ, ВПП 27). Курс КРМ постоянный, из базы симулятора, OBS его не меняет. На табло видно `КРМ IRZ 264`.
+- Пролёт над антенной КРМ (за торцом ВПП) не переключает НА на ОТ.
+
+### 1.10.0 – 2026-11-07
+#### Добавлено
+- Приложение АП-28 для планшета EFB (удалено в 1.12.0).
+- Блокировка, чтобы два экземпляра панели никогда не управляли самолётом одновременно.
+
+### 1.9.0 – 2026-11-07
+#### Добавлено
+- **Переключатель ИСТ НВУ** (3 положения) в строке АРК · VOR: МАРШ (маршрут из EFB), АРК или VOR. Определяет, откуда НВУ берёт направление.
+- **Точки SID и STAR**, выбранные в плане полёта EFB, входят в маршрут (`AP_CONFIG.nav.useProcedures`). Участки без координат (набор до высоты, векторение) пропускаются.
+
+#### Удалено
+- Отдельная кнопка VOR (её заменил переключатель ИСТ НВУ).
+
+### 1.8.0 – 2026-11-07
+#### Добавлено
+- **Встроенный приёмник VOR.** Панель сама находит в навигационной базе симулятора станцию на заданной частоте и вычисляет радиал и дальность. Работает на самолётах без радио NAV, например на Ан-28. `AP_CONFIG.radio.vorMode = "sim"` возвращает радио NAV1 самолёта.
+- **АТ — автомат тяги** (бирюзовая кнопка). Выдерживает текущую приборную скорость. Колесо мыши над кнопкой меняет скорость (1 уз / 5 км/ч, Shift ×10). Перемещение РУД пилотом или касание ВПП его отключает.
+
+### 1.7.0 – 2026-11-07
+#### Добавлено
+- Необязательная связь с внешним плагином для stream deck через `http://127.0.0.1:28650` (`AP_CONFIG.link`). Панель работает и без него.
+
+### 1.6.2 – 2026-11-07
+#### Изменено
+- У ВЭМ-72 чёрный корпус, барабанный счётчик перенесён ниже оси стрелки.
+
+#### Добавлено
+- Зелёное табло ДЕМПФ вверху панели. Горит, пока работает демпфер рыскания.
+
+### 1.6.0 – 2026-11-07
+#### Добавлено
+- **Табло ОПАСН. ВЫС.** (красное): радиовысота ниже порога (по умолчанию 60 м). Колесо мыши над табло меняет порог на 10 м (Shift: 50 м).
+- **Табло ЗАД. ВЫС.** (жёлтое): до заданной высоты меньше 1000 ft. Мигает, если самолёт уходит от неё больше чем на 200 ft.
+- **ДЕМПФ — демпфер рыскания:** триммер руля направления держит шарик в центре. Работает и при выключенном АП, в воздухе на скорости выше 60 уз, и сам исправляет направление действия, если оно оказалось обратным.
+
+### 1.5.0 – 2026-11-07
+#### Добавлено
+- **Переключатель НА / ОТ** в строке АРК · VOR: полёт на или от NDB или VOR по заданной линии (ЗПУ / OBS).
+- После пролёта станции переключатель сам переходит на ОТ (`AP_CONFIG.radio.autoFrom`).
+
+### 1.4.0 – 2026-11-07
+#### Добавлено
+- **Высотомер ВЭМ-72**, встроенный в панель в обоих видах: метры или футы (кнопка ЕД.), плавно вращающийся барабанный счётчик и окно давления в мм рт. ст. или гПа. Колесо меняет давление, щелчок устанавливает местное давление.
+
+### 1.3.0 – 2026-11-07
+#### Добавлено
+- Кнопки в заголовке окна (свернуть, открепить, закрыть).
+- Панель масштабируется вместе с шириной окна.
+- Источник высоты выбирается в `AP_CONFIG.altSimVar`.
+
+#### Исправлено
+- Стрелка курса вращается вокруг центра шкалы.
+
+### 1.2.0
+#### Добавлено
+- Щелчок по разряду счётчика высоты выбирает шаг стрелок (1 / 10 / 100 / 1000 / 10000), колесо мыши над разрядом меняет этот разряд.
+- Кнопка ЕД. переключает высоту между футами и метрами.
+
+### 1.1.0
+#### Добавлено
+- Щелчок или перетаскивание по шкале курса задаёт курс (колесо ±1, Shift ±10).
+- Удержание кнопки со стрелкой меняет значение непрерывно и всё быстрее.
+- НВУ ведёт по маршруту из EFB в MSFS 2024.
+
+### 1.0.0
+#### Добавлено
+- Первый выпуск панели автопилота для панели инструментов в стиле советской кабины, с собственным автопилотом, независимым от самолёта.
+- Режимы: АП, ГОРИЗОНТ (приведение к горизонту), КУРС, ВЫСОТА (стабилизация высоты), ВС (вертикальная скорость), НВУ (навигация).
+- Автоматическое отключение с табло КУРС-КРЕН и ТАНГАЖ.
+- Два вида: советский пульт и копия пульта АП-28Л1.
