@@ -1,0 +1,13 @@
+/* AP-28 Autopilot Panel - okno panelu. Caly wyglad autopilota jest budowany w AP28Panel.js. */
+ap28-panel {
+    display: block;
+}
+#ap28-root {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    box-sizing: border-box;
+    padding: 6px;
+    overflow-x: hidden;
+    overflow-y: auto;
+}

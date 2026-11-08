@@ -1,0 +1,11 @@
+# wyniki budowania MSFS (Dev Mode)
+project/Packages/
+project/_PackageInt/
+project/_Temp/
+Packages/
+_PackageInt/
+# logi i pliki tymczasowe
+*.log
+__pycache__/
+.DS_Store
+Thumbs.db

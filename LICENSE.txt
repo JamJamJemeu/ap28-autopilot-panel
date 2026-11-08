@@ -1,0 +1,32 @@
+AP-28 Autopilot Panel
+Copyright (c) 2026 JamJam. Wszelkie prawa zastrzezone.
+All rights reserved.
+
+Ten mod (kod, grafika, tekstury, ikona, uklad pulpitow) zostal stworzony od podstaw
+dla autora wskazanego powyzej. Bez pisemnej zgody autora nie wolno go rozpowszechniac,
+modyfikowac ani sprzedawac, z wyjatkiem uzytku wlasnego.
+
+Wyjatek: kontury liter wbudowane w plik AP28Panel.js pochodza z czcionki
+DejaVu Sans Condensed Bold i podlegaja licencji opisanej w THIRD-PARTY.txt.
+
+Microsoft Flight Simulator jest znakiem towarowym firmy Microsoft. Ten mod nie jest
+produktem firmy Microsoft ani z nia powiazany.
+
+---------------------------------------------------------------------------------
+English:
+This mod (code, graphics, textures, icon, panel layouts) was created from scratch by
+the author named above. Without the author's written permission it may not be
+redistributed, modified or sold, except for personal use. Publishing the source code
+on GitHub does not grant any of these rights.
+
+Exception: the glyph outlines embedded in AP28Panel.js come from the DejaVu Sans
+Condensed Bold font and are covered by the license described in THIRD-PARTY.txt.
+
+Microsoft Flight Simulator is a trademark of Microsoft. This mod is not a Microsoft
+product and is not affiliated with Microsoft.
+
+---------------------------------------------------------------------------------
+По-русски:
+Этот мод (код, графика, текстуры, значок, компоновка пультов) создан автором, указанным
+выше. Без письменного разрешения автора его нельзя распространять, изменять или продавать,
+кроме личного использования. Публикация исходного кода на GitHub не даёт этих прав.

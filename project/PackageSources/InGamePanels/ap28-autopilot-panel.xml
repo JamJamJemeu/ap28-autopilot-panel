@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="Windows-1252"?>
+<SimBase.Document Type="InGamePanels" version="1,0">
+  <Filename>ap28-autopilot-panel.spb</Filename>
+  <InGamePanels.InGamePanelDefinition id="PANEL_AP28_AUTOPILOT" Name="AP-28 Autopilot" url="html_ui/InGamePanels/AP28Panel/AP28Panel.html" resizeDirections="Both" minWidth="18" minHeight="20" defaultWidth="38" defaultHeight="60" defaultTop="15" defaultRight="2" icon="ICON_TOOLBAR_AP28_AUTOPILOT" buttonVisible="true">
+  </InGamePanels.InGamePanelDefinition>
+</SimBase.Document>
