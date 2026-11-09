@@ -76,7 +76,16 @@ const AP_CONFIG = {
         pilotOverride: true,    // ruszenie przepustnica (os, klawisze, mysz) wylacza AT; false = AT ignoruje ruchy dzwigni
         overrideDiff: 0.05,     // dzwignia rozni sie od ustawienia AT o tyle (0..1) -> pilot ja ruszyl
         overrideSum: 0.05,      // albo male ruchy (np. klawisze F2/F3) zsumowaly sie do tylu
-        engines: 2              // liczba silnikow (dzwigni) do ustawiania
+        engines: 2,             // liczba silnikow (dzwigni) do ustawiania
+        // ogranicznik silnika: AT nie przekroczy tych wartosci (procent maksimum wg danych samolotu).
+        // Ustaw 0, zeby pominac dany parametr. Gdy ktorys jest przekroczony, AT cofa przepustnice.
+        limit: {
+            rpmPct: 97,         // obroty silnika, % maks. (GENERAL ENG PCT MAX RPM)
+            n1Pct: 98,          // obroty sprezarki N1 turbiny, %
+            torquePct: 97,      // moment obrotowy, % maks. (TURB ENG MAX TORQUE PERCENT)
+            propPct: 97,        // obroty smigla, % maks. (PROP MAX RPM PERCENT)
+            gain: 2.0           // o ile cofnac przepustnice na 1% przekroczenia (2.0 = 2%)
+        }
     },
     yd: {                       // DEMPFER: tlumik odchylenia (trymer steru kierunku wg kata slizgu)
         kp: 0.06, ki: 0.04, kd: 0.03, iMax: 0.8, window: 8, dAlpha: 0.3,
@@ -253,7 +262,7 @@ const AP_LABELS = {
     freq: "ЧАСТ", obs: "ОБС", kur: "КУР", rad: "РАДИАЛ",           // frequency, OBS, relative bearing, radial
     lampRoll: "КУРС-КРЕН", lampPitch: "ТАНГАЖ",                     // disconnect lamps
     lampDanger: "ОПАСН. ВЫС.", lampAlt: "ЗАД. ВЫС.", lampYd: "ДЕМПФ",  // danger height / selected altitude / yaw damper
-    vorKey: "VOR", at: "АТ", atOff: "АТ ОТКЛ", atPilot: "АТ ОТКЛ: РУД", atOvr: "РУД ОТКЛ АТ: ", on: "ВКЛ", off: "ВЫКЛ", kt: "УЗ", kmh: "КМ/Ч",   // VOR / autothrottle
+    vorKey: "VOR", at: "АТ", atOff: "АТ ОТКЛ", atPilot: "АТ ОТКЛ: РУД", atLim: "ОГР", atOvr: "РУД ОТКЛ АТ: ", on: "ВКЛ", off: "ВЫКЛ", kt: "УЗ", kmh: "КМ/Ч",   // VOR / autothrottle
     vorNone: "НЕТ СТАНЦИИ", krm: "КРМ", // no VOR station / KRM = localizer (kursowa radiolatarnia ILS)
     yd: "ДЕМПФ", ydSign: "ДЕМПФ: ЗНАК ИЗМЕНЕН", ydBusy: "ДЕМПФ: ТРИММ РН ЗАНЯТ",   // yaw damper
     discRoll: "АП ОТКЛ: КРЕН", discPitch: "АП ОТКЛ: ТАНГАЖ", discYoke: "АП ОТКЛ: ШТУРВАЛ",
@@ -1076,7 +1085,7 @@ class AP28Panel extends AP28_BASE {
                 }
                 return;
             }
-            this.version = "AP-28 v1.15.0";
+            this.version = "AP-28 v1.16.0";
             this._buildSkin();
             if (this.skinOn) {
                 if (this.skinKind !== "an28") this._initListeners();
@@ -2879,17 +2888,48 @@ class AP28Panel extends AP28_BASE {
         }
         const ias = this._ias();
         const out = this.atPID.update(this.atTarget - ias, ias, dt, false);
-        const want = apClamp(A.base + out, C.minThr, C.maxThr);
-        A.thr = apClamp(apSlew(A.thr, want, C.slew * dt), 0, 1);
+        let want = apClamp(A.base + out, C.minThr, C.maxThr);
+        // ogranicznik silnika (ОГР): obroty / N1 / moment / smiglo blisko maksimum -> nie dodawaj, przekroczone -> cofnij
+        const L = this._atEngLimit(nEng);
+        A.lim = L.r > 0.995;
+        let slew = C.slew;
+        if (L.r > 1) { want = Math.min(want, A.thr - (L.r - 1) * 100 * ((C.limit && C.limit.gain) || 2) / 100); slew = C.slew * 2; }
+        else if (L.r > 0.995) want = Math.min(want, A.thr);
+        if (A.lim) {
+            A.base = want - out;                       // bez narastania calki, gdy ogranicznik trzyma przepustnice
+            if (!A.limLog || now - A.limLog > 10) { A.limLog = now; this.log("AT ОГР: " + L.what + " " + L.val.toFixed(1) + "% (limit " + L.lim + "%)"); }
+        }
+        A.thr = apClamp(apSlew(A.thr, want, slew * dt), 0, 1);
         const v = Math.round(A.thr * 16383);
         for (let i = 1; i <= nEng; i++) SimVar.SetSimVarValue("K:THROTTLE" + i + "_SET", "number", v);
         A.w2 = A.w1; A.w1 = v / 16383;                 // co AT wpisal (do wykrywania ruchu pilota)
         if (this._logOn() && (++this._atDbg || (this._atDbg = 1)) % 20 === 0)
-            this.log("AT ias " + ias.toFixed(1) + "/" + this.atTarget + " thr " + Math.round(A.thr * 100) + "% lever " + Math.round(lever * 100) + "%");
+            this.log("AT ias " + ias.toFixed(1) + "/" + this.atTarget + " thr " + Math.round(A.thr * 100) + "% lever " + Math.round(lever * 100) + "% | " + L.txt);
+    }
+
+    // najwieksze wykorzystanie limitu silnika (1.0 = na limicie) i opis do logu
+    _atEngLimit(nEng) {
+        const C = AP_CONFIG.at.limit || {};
+        const defs = [["rpmPct", "GENERAL ENG PCT MAX RPM", "RPM"], ["n1Pct", "TURB ENG N1", "N1"],
+            ["torquePct", "TURB ENG MAX TORQUE PERCENT", "TQ"], ["propPct", "PROP MAX RPM PERCENT", "PROP"]];
+        const res = { r: 0, what: "", val: 0, lim: 0, txt: "" };
+        const parts = [];
+        defs.forEach(([key, sv, name]) => {
+            const lim = C[key];
+            let mx = 0;
+            for (let i = 1; i <= nEng; i++) mx = Math.max(mx, this._sv(sv + ":" + i, "percent") || 0);
+            parts.push(name + " " + mx.toFixed(1));
+            if (!lim || !(mx > 1)) return;                 // wylaczony albo samolot tego nie podaje
+            const r = mx / lim;
+            if (r > res.r) { res.r = r; res.what = name; res.val = mx; res.lim = lim; }
+        });
+        res.txt = parts.join(" ") + (res.r > 0.995 ? " ОГР " + res.what : "");
+        return res;
     }
 
     _atStr() {
-        return AP_LABELS.at + " " + Math.round(this._spdDisp(this.atTarget)) + " " + (this.altMetric ? AP_LABELS.kmh : AP_LABELS.kt);
+        return AP_LABELS.at + " " + Math.round(this._spdDisp(this.atTarget)) + " " + (this.altMetric ? AP_LABELS.kmh : AP_LABELS.kt) +
+            (this._at && this._at.lim ? " " + AP_LABELS.atLim : "");
     }
 
     // ===== zewnetrzny panel (wtyczka Stream Panel / Stream Dock) =====

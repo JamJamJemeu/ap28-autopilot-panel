@@ -76,7 +76,16 @@ const AP_CONFIG = {
         pilotOverride: true,    // ruszenie przepustnica (os, klawisze, mysz) wylacza AT; false = AT ignoruje ruchy dzwigni
         overrideDiff: 0.05,     // dzwignia rozni sie od ustawienia AT o tyle (0..1) -> pilot ja ruszyl
         overrideSum: 0.05,      // albo male ruchy (np. klawisze F2/F3) zsumowaly sie do tylu
-        engines: 2              // liczba silnikow (dzwigni) do ustawiania
+        engines: 2,             // liczba silnikow (dzwigni) do ustawiania
+        // ogranicznik silnika: AT nie przekroczy tych wartosci (procent maksimum wg danych samolotu).
+        // Ustaw 0, zeby pominac dany parametr. Gdy ktorys jest przekroczony, AT cofa przepustnice.
+        limit: {
+            rpmPct: 97,         // obroty silnika, % maks. (GENERAL ENG PCT MAX RPM)
+            n1Pct: 98,          // obroty sprezarki N1 turbiny, %
+            torquePct: 97,      // moment obrotowy, % maks. (TURB ENG MAX TORQUE PERCENT)
+            propPct: 97,        // obroty smigla, % maks. (PROP MAX RPM PERCENT)
+            gain: 2.0           // o ile cofnac przepustnice na 1% przekroczenia (2.0 = 2%)
+        }
     },
     yd: {                       // DEMPFER: tlumik odchylenia (trymer steru kierunku wg kata slizgu)
         kp: 0.06, ki: 0.04, kd: 0.03, iMax: 0.8, window: 8, dAlpha: 0.3,
@@ -253,7 +262,7 @@ const AP_LABELS = {
     freq: "\u0427\u0410\u0421\u0422", obs: "\u041e\u0411\u0421", kur: "\u041a\u0423\u0420", rad: "\u0420\u0410\u0414\u0418\u0410\u041b",           // frequency, OBS, relative bearing, radial
     lampRoll: "\u041a\u0423\u0420\u0421-\u041a\u0420\u0415\u041d", lampPitch: "\u0422\u0410\u041d\u0413\u0410\u0416",                     // disconnect lamps
     lampDanger: "\u041e\u041f\u0410\u0421\u041d. \u0412\u042b\u0421.", lampAlt: "\u0417\u0410\u0414. \u0412\u042b\u0421.", lampYd: "\u0414\u0415\u041c\u041f\u0424",  // danger height / selected altitude / yaw damper
-    vorKey: "VOR", at: "\u0410\u0422", atOff: "\u0410\u0422 \u041e\u0422\u041a\u041b", atPilot: "\u0410\u0422 \u041e\u0422\u041a\u041b: \u0420\u0423\u0414", atOvr: "\u0420\u0423\u0414 \u041e\u0422\u041a\u041b \u0410\u0422: ", on: "\u0412\u041a\u041b", off: "\u0412\u042b\u041a\u041b", kt: "\u0423\u0417", kmh: "\u041a\u041c/\u0427",   // VOR / autothrottle
+    vorKey: "VOR", at: "\u0410\u0422", atOff: "\u0410\u0422 \u041e\u0422\u041a\u041b", atPilot: "\u0410\u0422 \u041e\u0422\u041a\u041b: \u0420\u0423\u0414", atLim: "\u041e\u0413\u0420", atOvr: "\u0420\u0423\u0414 \u041e\u0422\u041a\u041b \u0410\u0422: ", on: "\u0412\u041a\u041b", off: "\u0412\u042b\u041a\u041b", kt: "\u0423\u0417", kmh: "\u041a\u041c/\u0427",   // VOR / autothrottle
     vorNone: "\u041d\u0415\u0422 \u0421\u0422\u0410\u041d\u0426\u0418\u0418", krm: "\u041a\u0420\u041c", // no VOR station / KRM = localizer (kursowa radiolatarnia ILS)
     yd: "\u0414\u0415\u041c\u041f\u0424", ydSign: "\u0414\u0415\u041c\u041f\u0424: \u0417\u041d\u0410\u041a \u0418\u0417\u041c\u0415\u041d\u0415\u041d", ydBusy: "\u0414\u0415\u041c\u041f\u0424: \u0422\u0420\u0418\u041c\u041c \u0420\u041d \u0417\u0410\u041d\u042f\u0422",   // yaw damper
     discRoll: "\u0410\u041f \u041e\u0422\u041a\u041b: \u041a\u0420\u0415\u041d", discPitch: "\u0410\u041f \u041e\u0422\u041a\u041b: \u0422\u0410\u041d\u0413\u0410\u0416", discYoke: "\u0410\u041f \u041e\u0422\u041a\u041b: \u0428\u0422\u0423\u0420\u0412\u0410\u041b",
@@ -1076,7 +1085,7 @@ class AP28Panel extends AP28_BASE {
                 }
                 return;
             }
-            this.version = "AP-28 v1.15.0";
+            this.version = "AP-28 v1.16.0";
             this._buildSkin();
             if (this.skinOn) {
                 if (this.skinKind !== "an28") this._initListeners();
@@ -2879,17 +2888,48 @@ class AP28Panel extends AP28_BASE {
         }
         const ias = this._ias();
         const out = this.atPID.update(this.atTarget - ias, ias, dt, false);
-        const want = apClamp(A.base + out, C.minThr, C.maxThr);
-        A.thr = apClamp(apSlew(A.thr, want, C.slew * dt), 0, 1);
+        let want = apClamp(A.base + out, C.minThr, C.maxThr);
+        // ogranicznik silnika (\u041e\u0413\u0420): obroty / N1 / moment / smiglo blisko maksimum -> nie dodawaj, przekroczone -> cofnij
+        const L = this._atEngLimit(nEng);
+        A.lim = L.r > 0.995;
+        let slew = C.slew;
+        if (L.r > 1) { want = Math.min(want, A.thr - (L.r - 1) * 100 * ((C.limit && C.limit.gain) || 2) / 100); slew = C.slew * 2; }
+        else if (L.r > 0.995) want = Math.min(want, A.thr);
+        if (A.lim) {
+            A.base = want - out;                       // bez narastania calki, gdy ogranicznik trzyma przepustnice
+            if (!A.limLog || now - A.limLog > 10) { A.limLog = now; this.log("AT \u041e\u0413\u0420: " + L.what + " " + L.val.toFixed(1) + "% (limit " + L.lim + "%)"); }
+        }
+        A.thr = apClamp(apSlew(A.thr, want, slew * dt), 0, 1);
         const v = Math.round(A.thr * 16383);
         for (let i = 1; i <= nEng; i++) SimVar.SetSimVarValue("K:THROTTLE" + i + "_SET", "number", v);
         A.w2 = A.w1; A.w1 = v / 16383;                 // co AT wpisal (do wykrywania ruchu pilota)
         if (this._logOn() && (++this._atDbg || (this._atDbg = 1)) % 20 === 0)
-            this.log("AT ias " + ias.toFixed(1) + "/" + this.atTarget + " thr " + Math.round(A.thr * 100) + "% lever " + Math.round(lever * 100) + "%");
+            this.log("AT ias " + ias.toFixed(1) + "/" + this.atTarget + " thr " + Math.round(A.thr * 100) + "% lever " + Math.round(lever * 100) + "% | " + L.txt);
+    }
+
+    // najwieksze wykorzystanie limitu silnika (1.0 = na limicie) i opis do logu
+    _atEngLimit(nEng) {
+        const C = AP_CONFIG.at.limit || {};
+        const defs = [["rpmPct", "GENERAL ENG PCT MAX RPM", "RPM"], ["n1Pct", "TURB ENG N1", "N1"],
+            ["torquePct", "TURB ENG MAX TORQUE PERCENT", "TQ"], ["propPct", "PROP MAX RPM PERCENT", "PROP"]];
+        const res = { r: 0, what: "", val: 0, lim: 0, txt: "" };
+        const parts = [];
+        defs.forEach(([key, sv, name]) => {
+            const lim = C[key];
+            let mx = 0;
+            for (let i = 1; i <= nEng; i++) mx = Math.max(mx, this._sv(sv + ":" + i, "percent") || 0);
+            parts.push(name + " " + mx.toFixed(1));
+            if (!lim || !(mx > 1)) return;                 // wylaczony albo samolot tego nie podaje
+            const r = mx / lim;
+            if (r > res.r) { res.r = r; res.what = name; res.val = mx; res.lim = lim; }
+        });
+        res.txt = parts.join(" ") + (res.r > 0.995 ? " \u041e\u0413\u0420 " + res.what : "");
+        return res;
     }
 
     _atStr() {
-        return AP_LABELS.at + " " + Math.round(this._spdDisp(this.atTarget)) + " " + (this.altMetric ? AP_LABELS.kmh : AP_LABELS.kt);
+        return AP_LABELS.at + " " + Math.round(this._spdDisp(this.atTarget)) + " " + (this.altMetric ? AP_LABELS.kmh : AP_LABELS.kt) +
+            (this._at && this._at.lim ? " " + AP_LABELS.atLim : "");
     }
 
     // ===== zewnetrzny panel (wtyczka Stream Panel / Stream Dock) =====

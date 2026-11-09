@@ -8,6 +8,12 @@ Versions follow [Semantic Versioning](https://semver.org/). The ready-to-use pac
 
 ## English
 
+### 1.16.0 – 2026-11-09
+#### Added
+- **Engine limiter for АТ (ОГР).** АТ no longer pushes the engines past their limits, which earned overspeed penalties in Career mode. It watches engine RPM, turbine N1, torque and propeller RPM (as a percentage of the aircraft's maximum). Close to a limit it stops adding power, and above it pulls the throttle back.
+- While the limiter is active, the display shows `АТ … ОГР` and the log says which parameter is limiting.
+- Limits in `AP_CONFIG.at.limit`: `rpmPct` 97, `n1Pct` 98, `torquePct` 97, `propPct` 97 (0 = ignore), `gain`.
+
 ### 1.15.0 – 2026-11-08
 #### Added
 - **Moving the throttle disconnects the autopilot (АП ОТКЛ: РУД).** A lever movement of more than 5% since AP engagement turns AP off: an axis, several F2/F3 presses, or the mouse. A single small key tap is ignored.
@@ -130,6 +136,12 @@ Versions follow [Semantic Versioning](https://semver.org/). The ready-to-use pac
 
 ## Polski
 
+### 1.16.0 – 2026-11-09
+#### Dodano
+- **Ogranicznik silnika dla АТ (ОГР).** АТ nie przekracza już limitów silników, za co w karierze były kary za zbyt wysokie obroty. Pilnuje obrotów silnika, N1 turbiny, momentu obrotowego i obrotów śmigła (w procentach maksimum samolotu). Blisko limitu przestaje dodawać mocy, a po przekroczeniu cofa przepustnicę.
+- Gdy ogranicznik działa, na wyświetlaczu widać `АТ … ОГР`, a w logu, który parametr ogranicza.
+- Limity w `AP_CONFIG.at.limit`: `rpmPct` 97, `n1Pct` 98, `torquePct` 97, `propPct` 97 (0 = pomiń), `gain`.
+
 ### 1.15.0 – 2026-11-08
 #### Dodano
 - **Ruch przepustnicą wyłącza autopilota (АП ОТКЛ: РУД).** Przesunięcie dźwigni o ponad 5% od włączenia AP wyłącza AP: osią, kilkoma wciśnięciami F2/F3 albo myszą. Pojedyncze, małe stuknięcie klawiszem jest ignorowane.
@@ -251,6 +263,12 @@ Versions follow [Semantic Versioning](https://semver.org/). The ready-to-use pac
 ---
 
 ## Русский
+
+### 1.16.0 – 2026-11-09
+#### Добавлено
+- **Ограничитель режима двигателя для АТ (ОГР).** АТ больше не выводит двигатели за ограничения, за что в режиме карьеры начислялись штрафы за превышение оборотов. Он следит за оборотами двигателя, N1 турбины, крутящим моментом и оборотами винта (в процентах от максимума самолёта). Вблизи ограничения перестаёт добавлять режим, а при превышении убирает РУД.
+- Пока работает ограничитель, на табло видно `АТ … ОГР`, а в журнале — какой параметр ограничивает.
+- Ограничения в `AP_CONFIG.at.limit`: `rpmPct` 97, `n1Pct` 98, `torquePct` 97, `propPct` 97 (0 = не учитывать), `gain`.
 
 ### 1.15.0 – 2026-11-08
 #### Добавлено

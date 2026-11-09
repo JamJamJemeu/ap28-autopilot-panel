@@ -34,6 +34,7 @@ AP-28 Autopilot Panel is a toolbar panel for **Microsoft Flight Simulator 2024**
   - Holds indicated airspeed.
   - Disconnects when the pilot moves the throttle (Shift + click on АТ toggles this behaviour).
   - Also disconnects on touchdown.
+  - Engine limiter (ОГР): never exceeds engine RPM, N1, torque or propeller RPM limits.
 - **ДЕМПФ yaw damper** (rudder trim).
 - **ВЭМ-72 altimeter**
   - Feet or metres (ЕД. button).
@@ -102,6 +103,7 @@ AP-28 Autopilot Panel to panel do paska narzędzi **Microsoft Flight Simulator 2
   - Utrzymuje prędkość przyrządową.
   - Wyłącza się po ruszeniu przepustnicy (Shift + klik na АТ włącza lub wyłącza tę funkcję).
   - Wyłącza się też po przyziemieniu.
+  - Ogranicznik silnika (ОГР): nie przekracza limitów obrotów, N1, momentu ani obrotów śmigła.
 - **ДЕМПФ**, tłumik odchylenia (trymer steru kierunku).
 - **Wysokościomierz ВЭМ-72**
   - Stopy albo metry (przycisk ЕД.).
@@ -170,6 +172,7 @@ AP-28 Autopilot Panel — панель для панели инструмент�
   - Выдерживает приборную скорость.
   - Отключается при перемещении РУД (Shift + щелчок по АТ включает или выключает эту функцию).
   - Отключается также при касании ВПП.
+  - Ограничитель режима (ОГР): не превышает ограничений по оборотам, N1, крутящему моменту и оборотам винта.
 - **ДЕМПФ** — демпфер рыскания (триммер руля направления).
 - **Высотомер ВЭМ-72**
   - Футы или метры (кнопка ЕД.).
