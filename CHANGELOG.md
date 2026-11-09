@@ -8,6 +8,11 @@ Versions follow [Semantic Versioning](https://semver.org/). The ready-to-use pac
 
 ## English
 
+### 1.17.0 – 2026-11-09
+#### Added
+- **Exceedance recorder.** Every exceedance goes into the log with the time, value and flight state (IAS, altitude, throttle, AP/AT), to compare with Career mode penalties. Covered: engine RPM, N1, torque or propeller RPM above 100% of the aircraft's maximum, airspeed overspeed, stall warning, flap or gear speed exceeded, and g-load. The end of each event is logged too, with its duration and peak value. It works always, with or without AP and AT. Settings: `AP_CONFIG.exceed`.
+- **Log marker: double-click the text display.** It writes `ZNACZNIK n` to the log with a snapshot of the aircraft and engines, and the display briefly shows `МЕТКА n`. Use it when the sim shows a penalty message, so the moment is easy to find in the log.
+
 ### 1.16.0 – 2026-11-09
 #### Added
 - **Engine limiter for АТ (ОГР).** АТ no longer pushes the engines past their limits, which earned overspeed penalties in Career mode. It watches engine RPM, turbine N1, torque and propeller RPM (as a percentage of the aircraft's maximum). Close to a limit it stops adding power, and above it pulls the throttle back.
@@ -136,6 +141,11 @@ Versions follow [Semantic Versioning](https://semver.org/). The ready-to-use pac
 
 ## Polski
 
+### 1.17.0 – 2026-11-09
+#### Dodano
+- **Rejestrator przekroczeń.** Każde przekroczenie trafia do logu z godziną, wartością i stanem lotu (IAS, wysokość, gaz, AP/AT), żeby porównać je z karami kariery. Obejmuje: obroty silnika, N1, moment lub obroty śmigła powyżej 100% maksimum samolotu, przekroczenie prędkości, ostrzeżenie o przeciągnięciu, za dużą prędkość dla klap lub podwozia oraz przeciążenie. Koniec każdego zdarzenia też jest zapisywany, z czasem trwania i wartością szczytową. Działa zawsze, z AP i AT albo bez nich. Ustawienia: `AP_CONFIG.exceed`.
+- **Znacznik w logu: podwójny klik na wyświetlaczu tekstowym.** Zapisuje do logu `ZNACZNIK n` ze stanem samolotu i silników, a na wyświetlaczu na chwilę widać `МЕТКА n`. Przydaje się, gdy gra pokaże komunikat o karze, bo łatwo potem znaleźć ten moment w logu.
+
 ### 1.16.0 – 2026-11-09
 #### Dodano
 - **Ogranicznik silnika dla АТ (ОГР).** АТ nie przekracza już limitów silników, za co w karierze były kary za zbyt wysokie obroty. Pilnuje obrotów silnika, N1 turbiny, momentu obrotowego i obrotów śmigła (w procentach maksimum samolotu). Blisko limitu przestaje dodawać mocy, a po przekroczeniu cofa przepustnicę.
@@ -263,6 +273,11 @@ Versions follow [Semantic Versioning](https://semver.org/). The ready-to-use pac
 ---
 
 ## Русский
+
+### 1.17.0 – 2026-11-09
+#### Добавлено
+- **Регистратор превышений.** Каждое превышение записывается в журнал со временем, значением и параметрами полёта (приборная скорость, высота, РУД, АП/АТ), чтобы сравнить его со штрафами в режиме карьеры. Учитываются: обороты двигателя, N1, крутящий момент или обороты винта выше 100% максимума самолёта, превышение скорости, предупреждение о сваливании, превышение скорости для закрылков или шасси и перегрузка. Окончание каждого события тоже записывается, с длительностью и пиковым значением. Работает всегда, с АП и АТ или без них. Настройки: `AP_CONFIG.exceed`.
+- **Метка в журнале: двойной щелчок по текстовому табло.** Записывает в журнал `ZNACZNIK n` с параметрами самолёта и двигателей, а на табло на мгновение появляется `МЕТКА n`. Удобно, когда симулятор показывает сообщение о штрафе: этот момент потом легко найти в журнале.
 
 ### 1.16.0 – 2026-11-09
 #### Добавлено

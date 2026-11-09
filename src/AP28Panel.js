@@ -138,6 +138,15 @@ const AP_CONFIG = {
     // Dziala, gdy program Mad Doga z wtyczka jest uruchomiony (nawet przy wylaczonym СВЯЗЬ).
     fileLog: true,
 
+    // rejestrator przekroczen: zapisuje do logu (z godzina) kazde przekroczenie limitow silnika i
+    // ostrzezenia samolotu - zeby porownac je z karami kariery. Dziala zawsze, takze bez AP i AT.
+    exceed: {
+        enabled: true,
+        enginePct: 100,         // obroty / N1 / moment / smiglo powyzej tylu % maksimum samolotu
+        gMax: 2.5, gMin: -1.0,  // przeciazenie [g]
+        minMs: 300              // krotsze skoki sa pomijane [ms]
+    },
+
     // ruszenie przepustnica wylacza caly AP (os, klawisze F2/F3, mysz); false = AP nie reaguje na przepustnice
     throttleDisconnectsAP: true,
     throttleApDiff: 0.05,       // przesuniecie dzwigni (0..1) od chwili wlaczenia AP, ktore wylacza AP
@@ -270,6 +279,7 @@ const AP_LABELS = {
     noSignal: "НЕТ СИГНАЛА", ndbPass: "ПРОЛЕТ ПРИВОДА", vorPass: "ПРОЛЕТ VOR", toFrom: ["НА", "ОТ"],   // NDB / VOR passage, TO / FROM
     apOn: "АП ВКЛ", apOff: "АП ВЫКЛ",   // AP on / off
     apThr: "АП ОТКЛ: РУД",              // AP wylaczony ruchem przepustnicy
+    mark: "МЕТКА",                      // znacznik w logu (podwojny klik na wyswietlaczu)
     lockOther: "АП: ДРУГОЕ ОКНО",       // steruje drugi egzemplarz panelu (toolbar / EFB)
     shortLvl: "ГОР", shortHdg: "КУРС", shortAlt: "ВЫС", shortVs: "ВС",
     ft: "ФТ", ground: "НА ЗЕМЛЕ",       // ft / on ground
@@ -1085,7 +1095,7 @@ class AP28Panel extends AP28_BASE {
                 }
                 return;
             }
-            this.version = "AP-28 v1.16.0";
+            this.version = "AP-28 v1.17.0";
             this._buildSkin();
             if (this.skinOn) {
                 if (this.skinKind !== "an28") this._initListeners();
@@ -1420,6 +1430,66 @@ class AP28Panel extends AP28_BASE {
         });
         el.addEventListener("mouseup", stop);
         el.addEventListener("mouseleave", stop);
+        // podwojny klik: znacznik w logu (np. w chwili, gdy gra pokaze kare) ze stanem samolotu
+        el.addEventListener("dblclick", () => this._logMark());
+    }
+
+    _logMark() {
+        this._markN = (this._markN || 0) + 1;
+        const c = this.cur, n = Math.max(1, AP_CONFIG.at.engines), mx = (sv) => {
+            let m = 0; for (let i = 1; i <= n; i++) m = Math.max(m, this._sv(sv + ":" + i, "percent") || 0); return m.toFixed(1);
+        };
+        this.log("===== ZNACZNIK " + this._markN + " ===== IAS " + Math.round(this._ias()) + " kt, ALT " + Math.round(c.alt) + " ft, VS " + Math.round(c.vs) +
+            ", RPM " + mx("GENERAL ENG PCT MAX RPM") + "%, N1 " + mx("TURB ENG N1") + "%, TQ " + mx("TURB ENG MAX TORQUE PERCENT") + "%, PROP " + mx("PROP MAX RPM PERCENT") +
+            "%, gaz " + mx("GENERAL ENG THROTTLE LEVER POSITION") + "%, AP " + (this.apOn ? this.latMode + "/" + this.vertMode : "OFF") + ", AT " + (this.atOn ? this.atTarget : "OFF"), "MARK");
+        this._setNotice(AP_LABELS.mark + " " + this._markN, 2000);
+        this.updateUI();
+    }
+
+    // ----- rejestrator przekroczen (do porownania z karami kariery) -----
+    _exTick() {
+        const C = AP_CONFIG.exceed;
+        if (!C || C.enabled === false) return;
+        const now = performance.now();
+        if (now < (this._exNext || 0)) return;
+        this._exNext = now + 100;
+        if (!this._ex) this._ex = {};
+        const n = Math.max(1, AP_CONFIG.at.engines), list = [];
+        [["RPM", "GENERAL ENG PCT MAX RPM"], ["N1", "TURB ENG N1"], ["TQ", "TURB ENG MAX TORQUE PERCENT"], ["PROP", "PROP MAX RPM PERCENT"]].forEach(([nm, sv]) => {
+            for (let i = 1; i <= n; i++) {
+                const v = this._sv(sv + ":" + i, "percent") || 0;
+                list.push({ k: nm + i, txt: nm + " silnik " + i, v: v, on: v > C.enginePct, unit: "%" });
+            }
+        });
+        [["OVERSPEED WARNING", "przekroczenie predkosci (overspeed)"], ["STALL WARNING", "ostrzezenie o przeciagnieciu"],
+            ["FLAP SPEED EXCEEDED", "za duza predkosc dla klap"], ["GEAR SPEED EXCEEDED", "za duza predkosc dla podwozia"]].forEach(([sv, txt]) => {
+            const v = this._sv(sv, "bool") ? 1 : 0;
+            list.push({ k: sv, txt: txt, v: v, on: v > 0 && !this.cur.onGround, unit: "" });
+        });
+        const g = this._sv("G FORCE", "GForce") || 1;
+        list.push({ k: "G", txt: "przeciazenie", v: g, on: g > C.gMax || g < C.gMin, unit: " g" });
+        list.forEach((x) => {
+            const e = this._ex[x.k];
+            if (x.on) {
+                if (!e) this._ex[x.k] = { t0: now, max: x.v, min: x.v, logged: false };
+                else {
+                    e.max = Math.max(e.max, x.v); e.min = Math.min(e.min, x.v);
+                    if (!e.logged && now - e.t0 >= (C.minMs || 300)) {
+                        e.logged = true;
+                        this.log("PRZEKROCZENIE: " + x.txt + (x.unit ? " " + x.v.toFixed(1) + x.unit : "") + this._exCtx(), "WARN");
+                    }
+                }
+            } else if (e) {
+                if (e.logged) this.log("koniec: " + x.txt + ", trwalo " + ((now - e.t0) / 1000).toFixed(1) + " s" +
+                    (x.unit ? ", max " + (x.k === "G" && e.min < C.gMin ? e.min : e.max).toFixed(1) + x.unit : ""), "WARN");
+                delete this._ex[x.k];
+            }
+        });
+    }
+
+    _exCtx() {
+        return " (IAS " + Math.round(this._ias()) + " kt, ALT " + Math.round(this.cur.alt) + " ft, gaz " +
+            Math.round(this._sv("GENERAL ENG THROTTLE LEVER POSITION:1", "percent") || 0) + "%, AP " + (this.apOn ? "ON" : "OFF") + ", AT " + (this.atOn ? "ON" : "OFF") + ")";
     }
 
     // Przycisk z powtarzaniem: klik = jeden krok, przytrzymanie = kolejne kroki coraz szybciej
@@ -1548,6 +1618,7 @@ class AP28Panel extends AP28_BASE {
             this.readStates();
             try { this._lockTick(); } catch (e) { }
             try { this._apThrTick(); } catch (e) { }
+            try { this._exTick(); } catch (e) { }
             this._anTick();
             try { this._alertTick(); } catch (e) { }
             try { this._ydTick(); } catch (e) { this.log("YD: " + e, "ERROR"); }

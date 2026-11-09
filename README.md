@@ -69,7 +69,7 @@ Settings such as PID gains, autothrottle and VOR options are in `AP_CONFIG` at t
 
 ### Debug log
 
-Hold the panel's text display for about 1.5 s to show the log under the panel.
+Hold the panel's text display for about 1.5 s to show the log under the panel. Double-click the display to put a marker (`ZNACZNIK n`) in the log. Engine and airframe exceedances are logged automatically (`AP_CONFIG.exceed`).
 
 ### License
 
@@ -138,7 +138,7 @@ Ustawienia, takie jak wzmocnienia PID, AT i VOR, są w `AP_CONFIG` na początku 
 
 ### Log diagnostyczny
 
-Przytrzymaj wyświetlacz tekstowy panelu przez około 1,5 s, a pod panelem pojawi się log.
+Przytrzymaj wyświetlacz tekstowy panelu przez około 1,5 s, a pod panelem pojawi się log. Podwójny klik na wyświetlaczu wstawia do logu znacznik (`ZNACZNIK n`). Przekroczenia silnika i samolotu są zapisywane automatycznie (`AP_CONFIG.exceed`).
 
 ### Licencja
 
@@ -207,7 +207,7 @@ AP-28 Autopilot Panel — панель для панели инструмент�
 
 ### Журнал отладки
 
-Удерживайте текстовое табло панели около 1,5 с, и под панелью появится журнал.
+Удерживайте текстовое табло панели около 1,5 с, и под панелью появится журнал. Двойной щелчок по табло ставит в журнале метку (`ZNACZNIK n`). Превышения по двигателям и самолёту записываются автоматически (`AP_CONFIG.exceed`).
 
 ### Лицензия
 
