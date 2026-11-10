@@ -8,6 +8,10 @@ Versions follow [Semantic Versioning](https://semver.org/). The ready-to-use pac
 
 ## English
 
+### 1.18.1 – 2026-11-10
+#### Fixed
+- In the Soviet cockpit skin, the ОГР. КРЕНА selector no longer sticks out of its frame. The field is taller, and the panel grows slightly at the bottom.
+
 ### 1.18.0 – 2026-11-10
 #### Added
 - **ОГР. КРЕНА bank limit selector.** A Soviet-style rotary step switch with a black bakelite pointer knob and an engraved scale of 10, 15, 20, 25 and 30°. It sets the maximum bank in turns in every mode: КУРС, НВУ and РАЗВОРОТЫ. Click a number to select it, click the knob to step to the next position, or use the mouse wheel. The display briefly shows `КРЕН 25°`, and the position is remembered.
@@ -150,6 +154,10 @@ Versions follow [Semantic Versioning](https://semver.org/). The ready-to-use pac
 
 ## Polski
 
+### 1.18.1 – 2026-11-10
+#### Naprawiono
+- W wyglądzie radzieckiego pulpitu przełącznik ОГР. КРЕНА nie wychodzi już poza ramkę. Pole jest wyższe, a panel nieco urósł na dole.
+
 ### 1.18.0 – 2026-11-10
 #### Dodano
 - **Przełącznik ОГР. КРЕНА, czyli ograniczenie przechylenia.** Galetowy przełącznik w radzieckim stylu: czarna bakelitowa gałka ze wskaźnikiem i grawerowana skala 10, 15, 20, 25 i 30°. Ustala maksymalny przechył w zakrętach we wszystkich trybach: КУРС, НВУ i РАЗВОРОТЫ. Klik w liczbę wybiera to położenie, klik w gałkę przestawia na następne, działa też kółko myszy. Na wyświetlaczu na chwilę widać `КРЕН 25°`, a ustawienie jest zapamiętywane.
@@ -291,6 +299,10 @@ Versions follow [Semantic Versioning](https://semver.org/). The ready-to-use pac
 ---
 
 ## Русский
+
+### 1.18.1 – 2026-11-10
+#### Исправлено
+- В виде советского пульта переключатель ОГР. КРЕНА больше не выходит за рамку. Поле стало выше, панель немного увеличилась снизу.
 
 ### 1.18.0 – 2026-11-10
 #### Добавлено

@@ -485,7 +485,7 @@ const AP_SKIN_CSS = `
 .sv-bsd{position:absolute;text-align:center;line-height:1;color:#e6e3d6;opacity:.72;white-space:nowrap}
 .sv-bsd.sv-on{opacity:1}
 .sv-bsd .sv-g{margin-right:.5px}
-.sv-bankrow{display:flex;align-items:center;justify-content:center;gap:14px;height:64px;margin:0 4px;
+.sv-bankrow{display:flex;align-items:center;justify-content:center;gap:14px;height:74px;margin:0 4px;box-sizing:border-box;
  border:1px solid rgba(214,210,190,.35);border-radius:2px}
 .sv-bankcap{font-size:10px;color:#d9d5c2;line-height:1.35;text-align:right}
 .sv-bankcap .sv-g{margin-right:1.2px}
@@ -925,8 +925,8 @@ const AP_VEM_CSS = `
 .vem-box{position:relative;flex:none;border-radius:9px}
 .vem-box > .vem{position:absolute;left:0;top:0;transform-origin:0 0}
 .sv-vembot{align-items:flex-start;gap:12px;margin-top:4px}
-.sv-vcol{flex:1;min-width:0;display:flex;flex-direction:column;gap:10px;height:196px}
-.sv-vcol .sv-status{flex:1;margin:4px}
+.sv-vcol{flex:1;min-width:0;display:flex;flex-direction:column;gap:10px;min-height:196px}
+.sv-vcol .sv-status{flex:1;margin:4px;min-height:58px}
 .sv-vbtns{display:flex;gap:8px}
 .sv-vbtns .sv-mini{flex:1 1 0;height:38px;margin:0;font-size:11px}
 .sv-vbtns .sv-mini[data-k="controls"]{flex:2 1 0}
@@ -1156,7 +1156,7 @@ class AP28Panel extends AP28_BASE {
                 }
                 return;
             }
-            this.version = "AP-28 v1.18.0";
+            this.version = "AP-28 v1.18.1";
             this._buildSkin();
             if (this.skinOn) {
                 if (this.skinKind !== "an28") this._initListeners();
