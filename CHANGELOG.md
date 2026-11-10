@@ -8,6 +8,15 @@ Versions follow [Semantic Versioning](https://semver.org/). The ready-to-use pac
 
 ## English
 
+### 1.18.0 – 2026-11-10
+#### Added
+- **ОГР. КРЕНА bank limit selector.** A Soviet-style rotary step switch with a black bakelite pointer knob and an engraved scale of 10, 15, 20, 25 and 30°. It sets the maximum bank in turns in every mode: КУРС, НВУ and РАЗВОРОТЫ. Click a number to select it, click the knob to step to the next position, or use the mouse wheel. The display briefly shows `КРЕН 25°`, and the position is remembered.
+- In the Soviet cockpit skin it sits between the display and the buttons. In the AP-28L1 skin it has its own ОГРАНИЧЕНИЕ КРЕНА plate under the autopilot console.
+- Positions in `AP_CONFIG.bankSel`, default `AP_CONFIG.maxBank` (20°). Turn anticipation on the route uses the selected bank too.
+
+#### Changed
+- In the AP-28L1 skin, РАЗВОРОТЫ mode also uses the selected limit (previously fixed at 15°).
+
 ### 1.17.0 – 2026-11-09
 #### Added
 - **Exceedance recorder.** Every exceedance goes into the log with the time, value and flight state (IAS, altitude, throttle, AP/AT), to compare with Career mode penalties. Covered: engine RPM, N1, torque or propeller RPM above 100% of the aircraft's maximum, airspeed overspeed, stall warning, flap or gear speed exceeded, and g-load. The end of each event is logged too, with its duration and peak value. It works always, with or without AP and AT. Settings: `AP_CONFIG.exceed`.
@@ -141,6 +150,15 @@ Versions follow [Semantic Versioning](https://semver.org/). The ready-to-use pac
 
 ## Polski
 
+### 1.18.0 – 2026-11-10
+#### Dodano
+- **Przełącznik ОГР. КРЕНА, czyli ograniczenie przechylenia.** Galetowy przełącznik w radzieckim stylu: czarna bakelitowa gałka ze wskaźnikiem i grawerowana skala 10, 15, 20, 25 i 30°. Ustala maksymalny przechył w zakrętach we wszystkich trybach: КУРС, НВУ i РАЗВОРОТЫ. Klik w liczbę wybiera to położenie, klik w gałkę przestawia na następne, działa też kółko myszy. Na wyświetlaczu na chwilę widać `КРЕН 25°`, a ustawienie jest zapamiętywane.
+- W wyglądzie radzieckiego pulpitu jest między wyświetlaczem a przyciskami. W wyglądzie AP-28L1 ma własną tabliczkę ОГРАНИЧЕНИЕ КРЕНА pod pulpitem autopilota.
+- Położenia w `AP_CONFIG.bankSel`, domyślnie `AP_CONFIG.maxBank` (20°). Wyprzedzenie zakrętu na trasie też liczy się z wybranego przechyłu.
+
+#### Zmieniono
+- W wyglądzie AP-28L1 tryb РАЗВОРОТЫ też korzysta z wybranego ograniczenia (wcześniej stałe 15°).
+
 ### 1.17.0 – 2026-11-09
 #### Dodano
 - **Rejestrator przekroczeń.** Każde przekroczenie trafia do logu z godziną, wartością i stanem lotu (IAS, wysokość, gaz, AP/AT), żeby porównać je z karami kariery. Obejmuje: obroty silnika, N1, moment lub obroty śmigła powyżej 100% maksimum samolotu, przekroczenie prędkości, ostrzeżenie o przeciągnięciu, za dużą prędkość dla klap lub podwozia oraz przeciążenie. Koniec każdego zdarzenia też jest zapisywany, z czasem trwania i wartością szczytową. Działa zawsze, z AP i AT albo bez nich. Ustawienia: `AP_CONFIG.exceed`.
@@ -273,6 +291,15 @@ Versions follow [Semantic Versioning](https://semver.org/). The ready-to-use pac
 ---
 
 ## Русский
+
+### 1.18.0 – 2026-11-10
+#### Добавлено
+- **Переключатель ОГР. КРЕНА — ограничение крена.** Галетный переключатель в советском стиле: чёрная бакелитовая ручка-указатель и гравированная шкала 10, 15, 20, 25 и 30°. Задаёт максимальный крен на разворотах во всех режимах: КУРС, НВУ и РАЗВОРОТЫ. Щелчок по цифре выбирает положение, щелчок по ручке переводит на следующее, работает и колесо мыши. На табло на мгновение появляется `КРЕН 25°`, положение запоминается.
+- В виде советского пульта он находится между табло и кнопками. В виде АП-28Л1 у него своя панель ОГРАНИЧЕНИЕ КРЕНА под пультом автопилота.
+- Положения в `AP_CONFIG.bankSel`, по умолчанию `AP_CONFIG.maxBank` (20°). Упреждение разворота на маршруте тоже считается по выбранному крену.
+
+#### Изменено
+- В виде АП-28Л1 режим РАЗВОРОТЫ тоже использует выбранное ограничение (раньше было постоянно 15°).
 
 ### 1.17.0 – 2026-11-09
 #### Добавлено

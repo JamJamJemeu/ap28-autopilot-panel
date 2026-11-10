@@ -25,6 +25,7 @@ AP-28 Autopilot Panel is a toolbar panel for **Microsoft Flight Simulator 2024**
   - НВУ (navigation)
   - Automatic disconnect, with КУРС-КРЕН and ТАНГАЖ warning lamps
   - Moving the throttle disconnects the autopilot (АП ОТКЛ: РУД)
+- **ОГР. КРЕНА bank limit selector**: a Soviet-style rotary step switch, 10–30°, for turns in every mode.
 - **НВУ navigation source switch** (ИСТ НВУ): МАРШ (route from the EFB, including SID/STAR points), АРК (ADF/NDB) or VOR.
 - **Built-in virtual VOR receiver**
   - Finds stations in the sim's navigation database, then calculates radial and distance.
@@ -94,6 +95,7 @@ AP-28 Autopilot Panel to panel do paska narzędzi **Microsoft Flight Simulator 2
   - НВУ (nawigacja)
   - Automatyczne odłączenie z lampkami КУРС-КРЕН i ТАНГАЖ
   - Ruch przepustnicy wyłącza autopilota (АП ОТКЛ: РУД)
+- **Przełącznik ОГР. КРЕНА** (ograniczenie przechyłu): galetowy przełącznik w radzieckim stylu, 10–30°, dla zakrętów we wszystkich trybach.
 - **Przełącznik źródła НВУ** (ИСТ НВУ): МАРШ (trasa z EFB, także punkty SID/STAR), АРК (NDB) albo VOR.
 - **Wbudowany wirtualny odbiornik VOR**
   - Szuka stacji w bazie nawigacyjnej symulatora, potem liczy radial i odległość.
@@ -163,6 +165,7 @@ AP-28 Autopilot Panel — панель для панели инструмент�
   - НВУ (навигация)
   - Автоматическое отключение с табло КУРС-КРЕН и ТАНГАЖ
   - Перемещение РУД отключает автопилот (АП ОТКЛ: РУД)
+- **Переключатель ОГР. КРЕНА**: галетный переключатель в советском стиле, 10–30°, для разворотов во всех режимах.
 - **Переключатель источника НВУ** (ИСТ НВУ): МАРШ (маршрут из EFB, включая точки SID/STAR), АРК или VOR.
 - **Встроенный виртуальный приёмник VOR**
   - Ищет станции в навигационной базе симулятора, затем вычисляет радиал и дальность.
