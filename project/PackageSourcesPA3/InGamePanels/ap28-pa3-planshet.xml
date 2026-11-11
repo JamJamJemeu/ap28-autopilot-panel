@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="Windows-1252"?>
+<SimBase.Document Type="InGamePanels" version="1,0">
+  <Filename>ap28-pa3-planshet.spb</Filename>
+  <InGamePanels.InGamePanelDefinition id="PANEL_AP28_PA3" Name="PA-3 Planshet" url="html_ui/InGamePanels/AP28PA3/AP28PA3.html" resizeDirections="Both" minWidth="18" minHeight="20" defaultWidth="32" defaultHeight="50" defaultTop="15" defaultRight="36" icon="ICON_TOOLBAR_AP28_PA3" buttonVisible="true">
+  </InGamePanels.InGamePanelDefinition>
+</SimBase.Document>

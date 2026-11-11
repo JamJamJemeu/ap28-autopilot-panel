@@ -52,3 +52,14 @@ Elementy osob trzecich w AP-28 Autopilot Panel
     Inc., respectively. For further information, contact: fonts at gnome dot
     org.
 
+
+
+2) Komunikaty glosowe w plikach sounds/snps_on.wav i sounds/v_*.wav
+   wygenerowany syntezatorem Piper (https://github.com/rhasspy/piper, licencja MIT)
+   glosem "irina" (ru, medium). Model glosu wytrenowano na danych RHVoice
+   (https://github.com/RHVoice/RHVoice), licencja GPLv2.
+   Pozostale dzwieki (klapka, przelacznik, przycisk, rozruch) sa syntetyzowane
+   od zera i nie zawieraja nagran osob trzecich.
+
+3) Okno PA-3 Planshet (folder ap28-pa3-planshet) uzywa tych samych konturow liter
+   DejaVu Sans Condensed Bold co panel (punkt 1). Mapa jest rysowana z bazy danych gry.

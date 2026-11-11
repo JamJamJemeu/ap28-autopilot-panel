@@ -1,6 +1,6 @@
 // =====================================================================
 //  AP-28 Autopilot Panel - panel autopilota do toolbara MSFS 2024
-//  Copyright (c) 2026 JamJam (patrz LICENSE.txt). Wszelkie prawa zastrzezone. All rights reserved.
+//  Copyright (c) 2026 - autor moda (patrz LICENSE.txt). Wszelkie prawa zastrzezone.
 //
 //  Funkcje: AP, GORIZONT (ratunkowe poziomowanie), KURS (HDG), VYSOTA (ALT HOLD), VS,
 //           NVU (trasa z EFB / ARK-NDB / VOR), automatyczne odlaczenie z lampkami KURS-KREN i TANGAZ,
@@ -77,6 +77,8 @@ const AP_CONFIG = {
         pilotOverride: true,    // ruszenie przepustnica (os, klawisze, mysz) wylacza AT; false = AT ignoruje ruchy dzwigni
         overrideDiff: 0.05,     // dzwignia rozni sie od ustawienia AT o tyle (0..1) -> pilot ja ruszyl
         overrideSum: 0.05,      // albo male ruchy (np. klawisze F2/F3) zsumowaly sie do tylu
+        overrideMove: 0.03,     // fizyczna dzwignia (os) przesunela sie o tyle miedzy odczytami -> pilot nia rusza
+        overrideHist: 0.8,      // [s] ile ostatnich ustawien AT pamietac (gra wykonuje K:THROTTLE_SET z opoznieniem)
         engines: 2,             // liczba silnikow (dzwigni) do ustawiania
         // ogranicznik silnika: AT nie przekroczy tych wartosci (procent maksimum wg danych samolotu).
         // Ustaw 0, zeby pominac dany parametr. Gdy ktorys jest przekroczony, AT cofa przepustnice.
@@ -120,6 +122,34 @@ const AP_CONFIG = {
         autoFrom: true          // po przelocie nad NDB / VOR przelacznik sam przechodzi na "OT" i trzyma dotychczasowy kurs
     },
     skin: "sov",                // wyglad na starcie: "sov" (kabina radziecka) albo "an28" (pulpit AP-28L1); zmienia go przycisk VID (wybor jest zapamietywany)
+    // СНПС «Курс-С»: fikcyjny radziecki satelitarny system nawigacyjno-ladowania (lata 70.)
+    // (wirtualna sciezka kursu i schodzenia do kazdego pasa z bazy lotnisk gry)
+    sn: {
+        gsDeg: 3.0,             // kat sciezki schodzenia, gdy pas nie ma ILS (albo gra nie podaje kata) [deg]
+        tchM: 15,               // wysokosc sciezki nad progiem pasa [m]
+        dhM: 60,                // ВПР - wysokosc decyzji nad progiem [m]; tu AP sie wylacza
+        searchNm: 40,           // promien szukania lotnisk [NM]
+        maxNm: 30,              // pasy do wyboru: prog blizej niz tyle [NM]
+        locDot: 1.25,           // КПП: kropka kursu = tyle stopni
+        gsDot: 0.35,            // КПП: kropka sciezki = tyle stopni
+        capLoc: 2.5,            // zlapanie kursu: odchylenie katowe mniejsze niz tyle [deg]
+        capGsFt: 150,           // zlapanie sciezki: od -40 ft (z dolu) do tyle ft nad sciezka
+        gsGain: 4,              // poprawka VS na sciezce [fpm na ft odchylenia]
+        gsCorr: 500,            // maks. poprawka VS [fpm]
+        bootMs: 3200,           // rozruch po wlaczeniu: lampka miga, lampy nixie testuja katody, potem system gotowy [ms]
+        flareFt: 90,            // АВТ: wyrownanie od tej wysokosci radiowej [ft] (opadanie maleje wykladniczo do przyziemienia)
+        flareLead: 2.5,         // АВТ: wyprzedzenie [s] - liczy wysokosc za tyle sekund (AP reaguje z opoznieniem)
+        flareMinVs: -90,        // АВТ: najmniejsze opadanie w wyrownaniu [fpm]
+        retardFt: 20,           // АВТ: AT zdejmuje gaz od tej wysokosci [ft]
+        retardRate: 0.3,        // АВТ: szybkosc zdejmowania gazu [na s]
+        locGain: 6,             // [deg kursu przechwycenia / deg odchylenia od osi pasa]
+        joinMinNm: 6,           // ЗАХОД: na os pasa wchodzimy nie blizej niz tyle od progu [NM]
+        joinExtraNm: 1.5,       // ...i z zapasem tyle [NM] przed punktem, gdzie sciezka jest na naszej wysokosci
+        ipExtraNm: 2,           // punkt wejscia (gdy z obecnego miejsca nie da sie przechwycic osi) - tyle dalej [NM]
+        ipReachNm: 1.2,         // punkt wejscia osiagniety blizej niz tyle [NM]
+        joinAng: 30,            // maks. kat przechwycenia osi pasa [deg]
+        maxBank: 20             // maks. przechyl na podejsciu [deg] (mniejszy z tego i ОГР. КРЕНА)
+    },
     an: {                       // AP-28L1: zachowanie pulpitu
         readyDelayMs: 6000,     // po wlaczeniu PITANIE: czas do zapalenia lampki GOTOV [ms] (w prawdziwym AP-28L1: 10-100 s)
         knobStep: 10,           // przechyl na jedno polozenie galki RAZVOROT [deg] (3 polozenia = 30 deg)
@@ -148,10 +178,26 @@ const AP_CONFIG = {
         minMs: 300              // krotsze skoki sa pomijane [ms]
     },
 
-    // ruszenie przepustnica wylacza caly AP (os, klawisze F2/F3, mysz); false = AP nie reaguje na przepustnice
-    throttleDisconnectsAP: true,
+    // true = ruszenie przepustnica wylacza tez caly AP; false = wylacza tylko АТ (AP leci dalej)
+    throttleDisconnectsAP: false,
     throttleApDiff: 0.05,       // przesuniecie dzwigni (0..1) od chwili wlaczenia AP, ktore wylacza AP
 
+    // dzwieki (СНПС): najpierw proba odtworzenia w panelu (HTML Audio), a gdy gra na to nie pozwala - przez wtyczke
+    // Stream Panel (ona gra plik na Windowsie; dziala tez przy wylaczonym СВЯЗЬ, byle wtyczka byla uruchomiona)
+    // informator glosowy (jak РИ-65): komunikaty kobiecym glosem
+    voice: {
+        enabled: true,
+        speedLowKt: 65,         // «Опасная скорость» ponizej tej predkosci [kt] (w locie, wyzej niz 15 m)
+        speedHighKt: 185,       // ... albo powyzej tej [kt]
+        speedRepeat: 6,         // powtarzanie co tyle sekund, dopoki trwa
+        countdownM: [30, 20, 10, 5]   // odliczanie wysokosci nad ziemia przy podejsciu СНПС [m]
+    },
+    sound: {
+        enabled: true,
+        mode: "auto",           // "auto" | "panel" | "plugin"
+        volume: 0.8,            // glosnosc w panelu (wtyczka gra z glosnoscia systemowa)
+        base: "/InGamePanels/AP28Panel/sounds/"
+    },
     link: {                     // polaczenie z wtyczka AP-28 do Stream Panel GK150 / Stream Dock (klawisze na zewnetrznym panelu)
         enabled: true,
         url: "http://127.0.0.1:28650/ap28",   // tez probowane: http://localhost:28650/ap28, zapytania GET i fetch()
@@ -269,6 +315,18 @@ const AP_LABELS = {
     radioGroup: "АРК · VOR",            // radio navigation group
     srcCap: "ИСТ НВУ",                 // NAV source selector
     bankCap: "ОГР. КРЕНА",             // bank limit selector (sov)
+    snTitle: "СНПС «КУРС-С»",          // fictional satellite landing system
+    snwSub: "СПУТНИКОВАЯ НАВИГАЦИОННО-ПОСАДОЧНАЯ СИСТЕМА", snwLink: "СВЯЗЬ С АП",
+    snGrpPwr: "ПИТАНИЕ", snGrpSig: "СИГНАЛИЗАЦИЯ", snGrpRw: "ВПП", snGrpMode: "РЕЖИМ",
+    snwPlacard: "ВЫКЛЮЧАТЬ ПОСЛЕ ЗАРУЛИВАНИЯ НА СТОЯНКУ", snwPlate: "СНПС-1   № 0417   1976",
+    snReady: "ГОТОВ", snLoc: "КУРС", snGs: "ГЛИС", snDh: "ВПР",   // lamps: ready / localizer / glidepath / decision height
+    snRwy: "ВПП", snDistKm: "ДАЛЬН, КМ", snDistNm: "ДАЛЬН, МИЛЬ", snAng: "ГЛИС, °",
+    snLand: "ПОСАДКА", snLandVpr: "ВПР", snLandAuto: "АВТ", snLampTest: "КОНТР. ЛАМП", snTouch: "КАСАНИЕ",
+    snCrs: "КУРС ВПП", snAero: "АЭРОДРОМ", snApBtn: "АЭР", snOneAp: "СНПС: ОДИН АЭРОДРОМ", snApOk: "ВВОД", snAuto: "АВТ", snManual: "РУЧН",
+    snRwSel: "ВПП", snApPrev: "СНПС: ВЫБОР АЭРОДРОМА", snApSet: "СНПС: АЭРОДРОМ ПРИНЯТ",       // runway course selector / airfield (nixie display)
+    snApp: "ЗАХОД", snPwr: "ВКЛ", snOffPos: "ОТКЛ", snSw: "СНПС", snKpp: "КПП",              // approach button / power / flight director
+    snOn: "СНПС ВКЛ", snOff: "СНПС ВЫКЛ", snNoRwy: "СНПС: НЕТ ВПП", snNeedAp: "ЗАХОД: АП ВЫКЛ", snNeedPwr: "СНПС ВЫКЛ",
+    snBoot: "СНПС: ВКЛЮЧЕНИЕ", snDhOff: "ВПР · АП ОТКЛ", snAppOff: "ЗАХОД ВЫКЛ", snSearch: "СНПС: ПОИСК ВПП",
     bankTitle: "ОГРАНИЧЕНИЕ КРЕНА",    // bank limit plate (AP-28L1 skin)
     bankSub: "КУРС · НВУ · РАЗВОРОТ",  // where the limit applies
     bankNote: "КРЕН",                  // notice prefix
@@ -276,7 +334,7 @@ const AP_LABELS = {
     freq: "ЧАСТ", obs: "ОБС", kur: "КУР", rad: "РАДИАЛ",           // frequency, OBS, relative bearing, radial
     lampRoll: "КУРС-КРЕН", lampPitch: "ТАНГАЖ",                     // disconnect lamps
     lampDanger: "ОПАСН. ВЫС.", lampAlt: "ЗАД. ВЫС.", lampYd: "ДЕМПФ",  // danger height / selected altitude / yaw damper
-    vorKey: "VOR", at: "АТ", atOff: "АТ ОТКЛ", atPilot: "АТ ОТКЛ: РУД", atLim: "ОГР", atOvr: "РУД ОТКЛ АТ: ", on: "ВКЛ", off: "ВЫКЛ", kt: "УЗ", kmh: "КМ/Ч",   // VOR / autothrottle
+    vorKey: "VOR", at: "АТ", atOff: "АТ ОТКЛ", atPilot: "АТ ОТКЛ: РУД", atLim: "ОГР", atOvr: "РУД ОТКЛ АТ: ", on: "ВКЛ", off: "ВЫКЛ", kt: "УЗ", kmh: "КМ/Ч", snSpd: "СКОР", snRwLock: "ЗАХОД: ВПП ЗАФИКС.", snAtOffSpd: "АТ ВЫКЛ",   // VOR / autothrottle
     vorNone: "НЕТ СТАНЦИИ", krm: "КРМ", // no VOR station / KRM = localizer (kursowa radiolatarnia ILS)
     yd: "ДЕМПФ", ydSign: "ДЕМПФ: ЗНАК ИЗМЕНЕН", ydBusy: "ДЕМПФ: ТРИММ РН ЗАНЯТ",   // yaw damper
     discRoll: "АП ОТКЛ: КРЕН", discPitch: "АП ОТКЛ: ТАНГАЖ", discYoke: "АП ОТКЛ: ШТУРВАЛ",
@@ -307,7 +365,9 @@ const AP_LABELS = {
 const AP_TEX = {"paint":"data:image/png;base64,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","plate":"data:image/png;base64,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","wearBody":"data:image/png;base64,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","wearPlate":"data:image/png;base64,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"};
 
 // kontury liter: [szerokosc, sciezka] w ukladzie 1000 jedn./em, os Y w dol, linia bazowa y=0
-const AP_GLYPHS = {"\u00b0":[400,"M200 -760A120 120 0 1 1 199.9 -760ZM200 -700A60 60 0 1 0 200.1 -700Z"],"\u00d7":[754,"M642 -525 451 -313 642 -102 568 -20 377 -231 187 -20 112 -102 303 -313 112 -525 187 -607 377 -395 568 -607Z"],"\u0410":[696,"M481 -133H216L174 0H4L248 -729H449L692 0H522ZM258 -268H438L349 -558Z"],"\u0411":[686,"M351 -128Q404 -128 428 -150Q454 -174 454 -219Q454 -264 428 -287Q405 -309 351 -309H252V-128ZM363 0H83V-729H579V-587H252V-451H363Q488 -451 559 -394Q623 -342 623 -225Q623 -109 559 -57Q488 0 363 0Z"],"\u0412":[686,"M345 -447Q385 -447 406 -466Q427 -486 427 -524Q427 -562 406 -581Q385 -601 345 -601H252V-447ZM351 -128Q402 -128 428 -152Q454 -176 454 -224Q454 -271 428 -295Q402 -319 351 -319H252V-128ZM508 -390Q563 -373 593 -325Q623 -278 623 -209Q623 -104 558 -52Q494 0 363 0H83V-729H336Q473 -729 534 -683Q596 -637 596 -536Q596 -483 573 -446Q551 -408 508 -390Z"],"\u0413":[573,"M83 0V-729H549V-587H252V0Z"],"\u0414":[801,"M303 -142H485V-587H344V-542Q344 -230 303 -142ZM104 -142Q149 -176 162 -225Q174 -275 174 -591V-729H655V-142H748V157H620V0H182V157H54V-142Z"],"\u0415":[615,"M83 -729H539V-587H252V-451H522V-309H252V-142H549V0H83Z"],"\u0416":[1102,"M13 0 282 -437 42 -729H219L466 -428V-729H635V-428L882 -729H1060L820 -437L1088 0H902L714 -307L635 -212V0H466V-212L388 -307L200 0Z"],"\u0417":[639,"M445 -393Q511 -374 546 -327Q580 -280 580 -207Q580 -99 505 -42Q431 14 274 14Q209 14 158 5Q107 -4 60 -22V-167Q107 -141 154 -127Q200 -114 268 -114Q339 -114 375 -140Q411 -166 411 -214Q411 -264 374 -289Q337 -315 253 -315H172V-436H256Q333 -436 364 -458Q396 -480 396 -526Q396 -568 365 -591Q335 -614 275 -614Q213 -614 159 -602Q104 -590 74 -573V-711Q104 -722 168 -732Q233 -742 274 -742Q418 -742 491 -696Q564 -649 564 -555Q564 -491 534 -450Q504 -410 445 -393Z"],"\u0418":[753,"M670 -729V0H510V-500L271 0H83V-729H243V-229L481 -729Z"],"\u0419":[753,"M670 -729V0H510V-500L271 0H83V-729H243V-229L481 -729ZM214 -927H277Q286 -897 307 -883Q329 -868 362 -868Q396 -868 417 -883Q438 -897 447 -927H510Q502 -864 465 -831Q427 -798 362 -798Q297 -798 259 -831Q221 -864 214 -927Z"],"\u041a":[735,"M83 -729H252V-428L517 -729H708L447 -434L723 0H536L339 -311L252 -212V0H83Z"],"\u041b":[747,"M42 0V-142Q153 -156 175 -237Q198 -317 198 -591V-729H665V0H496V-587H367V-542Q367 -275 324 -151Q282 -27 42 0Z"],"\u041c":[896,"M83 -729H298L447 -339L598 -729H812V0H652V-533L501 -140H394L243 -533V0H83Z"],"\u041d":[753,"M83 -729H252V-451H501V-729H670V0H501V-309H252V0H83Z"],"\u041e":[765,"M382 -606Q305 -606 262 -542Q220 -479 220 -364Q220 -249 262 -186Q305 -122 382 -122Q460 -122 503 -186Q545 -249 545 -364Q545 -479 503 -542Q460 -606 382 -606ZM382 -742Q541 -742 630 -642Q720 -541 720 -364Q720 -187 630 -86Q541 14 382 14Q225 14 135 -86Q45 -187 45 -364Q45 -541 135 -642Q225 -742 382 -742Z"],"\u041f":[753,"M670 -729V0H501V-587H252V0H83V-729Z"],"\u0420":[659,"M83 -729H363Q489 -729 556 -667Q623 -605 623 -491Q623 -376 556 -315Q489 -253 363 -253H252V0H83ZM252 -593V-389H345Q395 -389 421 -416Q448 -442 448 -491Q448 -540 421 -566Q395 -593 345 -593Z"],"\u0421":[660,"M603 -40Q556 -13 506 0Q455 14 400 14Q236 14 141 -88Q45 -189 45 -364Q45 -539 141 -640Q236 -742 400 -742Q455 -742 506 -729Q556 -715 603 -688V-537Q556 -573 510 -589Q464 -606 414 -606Q323 -606 271 -542Q220 -477 220 -364Q220 -251 271 -187Q323 -122 414 -122Q464 -122 510 -139Q556 -155 603 -191Z"],"\u0422":[614,"M4 -729H609V-587H392V0H222V-587H4Z"],"\u0423":[694,"M409 -121Q392 -80 366 -53Q313 0 164 0H133V-142H179Q241 -142 255 -176Q259 -183 262 -190L26 -729H203L348 -397L490 -729H667Z"],"\u0424":[892,"M220 -372Q220 -298 254 -266Q288 -233 362 -226V-518Q288 -511 254 -478Q220 -445 220 -372ZM673 -372Q673 -445 639 -478Q604 -511 531 -518V-226Q604 -233 639 -266Q673 -298 673 -372ZM362 -729H531V-657Q692 -642 770 -575Q847 -508 847 -372Q847 -235 770 -168Q692 -102 531 -87V0H362V-87Q200 -102 123 -168Q45 -235 45 -372Q45 -508 123 -575Q200 -642 362 -657Z"],"\u0425":[694,"M448 -372 676 0H500L346 -249L194 0H17L245 -372L26 -729H203L346 -494L490 -729H667Z"],"\u0426":[835,"M653 0H83V-729H252V-142H501V-729H670V-142H781V157H653Z"],"\u0427":[727,"M476 0V-278H246Q163 -278 117 -335Q72 -393 72 -505V-729H242V-595Q242 -479 258 -450Q274 -420 315 -420H476V-729H645V0Z"],"\u0428":[1112,"M640 -142H859V-729H1029V0H83V-729H252V-142H471V-729H640Z"],"\u0429":[1193,"M1029 -142H1139V157H1011V0H83V-729H252V-142H471V-729H640V-142H859V-729H1029Z"],"\u042a":[845,"M529 -128Q582 -128 607 -151Q631 -174 631 -219Q631 -264 607 -286Q583 -309 529 -309H430V-128ZM261 -587H44V-729H430V-451H542Q666 -451 733 -397Q801 -342 801 -225Q801 -109 733 -54Q666 0 542 0H261Z"],"\u042b":[932,"M351 -128Q404 -128 428 -150Q454 -174 454 -219Q454 -264 428 -287Q405 -309 351 -309H252V-128ZM623 -225Q623 -109 559 -57Q488 0 363 0H83V-729H252V-451H363Q488 -451 559 -394Q623 -342 623 -225ZM681 -729H850V0H681Z"],"\u042c":[686,"M351 -128Q404 -128 428 -150Q454 -174 454 -219Q454 -264 428 -287Q405 -309 351 -309H252V-128ZM623 -225Q623 -109 559 -57Q488 0 363 0H83V-729H252V-451H363Q488 -451 559 -394Q623 -342 623 -225Z"],"\u042d":[660,"M58 -191Q148 -122 243 -122Q338 -122 382 -178Q427 -234 434 -293H139V-435H434Q427 -494 382 -550Q338 -606 243 -606Q148 -606 58 -537V-688Q151 -742 260 -742Q424 -742 520 -640Q616 -539 616 -364Q616 -189 520 -88Q424 14 260 14Q151 14 58 -40Z"],"\u042e":[1056,"M336 -435Q348 -558 430 -650Q512 -742 669 -742Q828 -742 917 -642Q1007 -541 1007 -364Q1007 -187 917 -86Q828 14 669 14Q512 14 430 -78Q348 -170 336 -293H252V0H83V-729H252V-435ZM669 -606Q592 -606 549 -542Q507 -479 507 -364Q507 -249 549 -186Q592 -122 669 -122Q747 -122 790 -186Q833 -249 833 -364Q833 -479 790 -542Q747 -606 669 -606Z"],"\u042f":[693,"M257 -500Q257 -450 281 -428Q304 -406 357 -406H441V-593H357Q304 -593 281 -571Q257 -550 257 -500ZM58 0 221 -310Q188 -331 138 -383Q88 -436 88 -508Q88 -618 149 -673Q209 -729 339 -729H610V0H441V-276H384L238 0Z"],"\u0401":[615,"M163 -927H266V-807H163ZM336 -927H440V-807H336ZM83 -729H539V-587H252V-451H522V-309H252V-142H549V0H83Z"],"A":[696,"M481 -133H216L174 0H4L248 -729H449L692 0H522ZM258 -268H438L349 -558Z"],"B":[686,"M345 -447Q385 -447 406 -466Q427 -486 427 -524Q427 -562 406 -581Q385 -601 345 -601H252V-447ZM351 -128Q402 -128 428 -152Q454 -176 454 -224Q454 -271 428 -295Q402 -319 351 -319H252V-128ZM508 -390Q563 -373 593 -325Q623 -278 623 -209Q623 -104 558 -52Q494 0 363 0H83V-729H336Q473 -729 534 -683Q596 -637 596 -536Q596 -483 573 -446Q551 -408 508 -390Z"],"C":[660,"M603 -40Q556 -13 506 0Q455 14 400 14Q236 14 141 -88Q45 -189 45 -364Q45 -539 141 -640Q236 -742 400 -742Q455 -742 506 -729Q556 -715 603 -688V-537Q556 -573 510 -589Q464 -606 414 -606Q323 -606 271 -542Q220 -477 220 -364Q220 -251 271 -187Q323 -122 414 -122Q464 -122 510 -139Q556 -155 603 -191Z"],"D":[747,"M252 -587V-142H312Q416 -142 471 -199Q525 -256 525 -365Q525 -474 471 -530Q417 -587 312 -587ZM83 -729H261Q411 -729 484 -705Q557 -682 609 -625Q655 -576 678 -511Q700 -447 700 -365Q700 -283 678 -218Q655 -153 609 -104Q556 -47 482 -24Q409 0 261 0H83Z"],"E":[615,"M83 -729H539V-587H252V-451H522V-309H252V-142H549V0H83Z"],"F":[615,"M83 -729H539V-587H252V-451H522V-309H252V0H83Z"],"G":[738,"M672 -54Q609 -20 541 -3Q473 14 400 14Q236 14 141 -88Q45 -189 45 -364Q45 -540 142 -641Q240 -742 410 -742Q475 -742 535 -729Q595 -715 648 -688V-537Q593 -572 539 -589Q485 -606 430 -606Q329 -606 274 -543Q220 -480 220 -364Q220 -248 272 -185Q325 -122 422 -122Q449 -122 471 -126Q494 -129 512 -137V-279H409V-405H672Z"],"H":[753,"M83 -729H252V-451H501V-729H670V0H501V-309H252V0H83Z"],"I":[334,"M83 -729H252V0H83Z"],"J":[334,"M83 -729H252V-71Q252 65 186 133Q119 200 -16 200H-50V58H-24Q29 58 56 25Q83 -7 83 -71Z"],"K":[697,"M83 -729H252V-463L496 -729H692L376 -384L725 0H513L252 -287V0H83Z"],"L":[573,"M83 -729H252V-142H549V0H83Z"],"M":[896,"M83 -729H298L447 -339L598 -729H812V0H652V-533L501 -140H394L243 -533V0H83Z"],"N":[753,"M83 -729H271L510 -229V-729H670V0H481L243 -500V0H83Z"],"O":[765,"M382 -606Q305 -606 262 -542Q220 -479 220 -364Q220 -249 262 -186Q305 -122 382 -122Q460 -122 503 -186Q545 -249 545 -364Q545 -479 503 -542Q460 -606 382 -606ZM382 -742Q541 -742 630 -642Q720 -541 720 -364Q720 -187 630 -86Q541 14 382 14Q225 14 135 -86Q45 -187 45 -364Q45 -541 135 -642Q225 -742 382 -742Z"],"P":[659,"M83 -729H363Q489 -729 556 -667Q623 -605 623 -491Q623 -376 556 -315Q489 -253 363 -253H252V0H83ZM252 -593V-389H345Q395 -389 421 -416Q448 -442 448 -491Q448 -540 421 -566Q395 -593 345 -593Z"],"Q":[765,"M400 13H387Q225 13 135 -86Q45 -186 45 -364Q45 -541 135 -642Q225 -742 382 -742Q542 -742 631 -643Q720 -543 720 -364Q720 -241 673 -152Q625 -63 537 -18L669 146H508ZM382 -606Q305 -606 262 -542Q220 -479 220 -364Q220 -247 261 -184Q303 -122 382 -122Q460 -122 503 -186Q545 -249 545 -364Q545 -479 503 -542Q460 -606 382 -606Z"],"R":[693,"M323 -406Q376 -406 399 -428Q422 -450 422 -500Q422 -550 399 -571Q376 -593 323 -593H252V-406ZM252 -276V0H83V-729H341Q471 -729 531 -681Q591 -632 591 -528Q591 -456 560 -409Q529 -363 465 -341Q500 -332 528 -301Q555 -270 583 -207L675 0H495L415 -181Q391 -236 366 -256Q341 -276 300 -276Z"],"S":[648,"M539 -706V-552Q485 -579 434 -592Q382 -606 336 -606Q276 -606 247 -587Q218 -569 218 -530Q218 -500 237 -484Q257 -468 309 -456L380 -440Q490 -416 536 -366Q582 -316 582 -224Q582 -104 518 -45Q454 14 321 14Q259 14 196 1Q133 -12 70 -38V-197Q133 -160 192 -141Q250 -122 305 -122Q360 -122 390 -143Q419 -163 419 -201Q419 -235 399 -254Q379 -272 319 -287L254 -303Q156 -327 110 -378Q64 -429 64 -516Q64 -625 128 -684Q191 -742 310 -742Q364 -742 421 -733Q478 -724 539 -706Z"],"T":[614,"M4 -729H609V-587H392V0H222V-587H4Z"],"U":[730,"M83 -729H252V-292Q252 -202 279 -163Q305 -124 365 -124Q426 -124 452 -163Q479 -202 479 -292V-729H648V-292Q648 -137 578 -62Q508 14 365 14Q222 14 152 -62Q83 -137 83 -292Z"],"V":[696,"M4 -729H174L349 -191L522 -729H692L449 0H248Z"],"W":[993,"M27 -729H189L302 -199L415 -729H578L690 -199L804 -729H965L810 0H615L496 -554L378 0H183Z"],"X":[694,"M448 -372 676 0H500L346 -249L194 0H17L245 -372L26 -729H203L346 -494L490 -729H667Z"],"Y":[651,"M-9 -729H176L326 -469L475 -729H661L411 -307V0H241V-307Z"],"Z":[652,"M51 -729H602V-615L250 -142H612V0H41V-114L393 -587H51Z"],"0":[626,"M414 -365Q414 -502 391 -558Q368 -614 313 -614Q259 -614 236 -558Q212 -502 212 -365Q212 -227 236 -170Q259 -114 313 -114Q367 -114 391 -170Q414 -227 414 -365ZM583 -364Q583 -183 513 -84Q442 14 313 14Q184 14 113 -84Q43 -183 43 -364Q43 -545 113 -644Q184 -742 313 -742Q442 -742 513 -644Q583 -545 583 -364Z"],"1":[626,"M105 -130H255V-601L102 -566V-694L254 -729H415V-130H564V0H105Z"],"2":[626,"M259 -138H548V0H71V-138L311 -373Q343 -405 358 -436Q374 -467 374 -500Q374 -551 343 -583Q312 -614 260 -614Q221 -614 174 -595Q126 -576 73 -539V-699Q130 -720 186 -731Q242 -742 295 -742Q413 -742 478 -685Q543 -627 543 -524Q543 -464 516 -413Q488 -361 399 -275Z"],"3":[626,"M419 -393Q485 -374 520 -327Q555 -280 555 -207Q555 -99 480 -42Q405 14 262 14Q211 14 161 5Q110 -4 60 -22V-167Q107 -141 154 -127Q201 -114 247 -114Q314 -114 350 -140Q385 -166 385 -214Q385 -264 349 -289Q312 -315 240 -315H173V-436H244Q308 -436 339 -458Q370 -480 370 -526Q370 -568 340 -591Q310 -614 254 -614Q213 -614 171 -604Q130 -593 88 -573V-711Q139 -727 188 -734Q237 -742 284 -742Q412 -742 476 -696Q539 -649 539 -555Q539 -491 509 -450Q479 -410 419 -393Z"],"4":[626,"M332 -574 146 -269H332ZM303 -729H491V-269H585V-133H491V0H332V-133H41V-294Z"],"5":[626,"M95 -729H516V-591H230V-478Q250 -484 269 -487Q289 -490 310 -490Q430 -490 497 -424Q563 -357 563 -238Q563 -120 491 -53Q418 14 289 14Q233 14 178 2Q124 -10 69 -34V-182Q123 -148 171 -131Q219 -114 262 -114Q323 -114 359 -147Q394 -181 394 -238Q394 -295 359 -329Q323 -362 262 -362Q226 -362 184 -351Q143 -341 95 -319Z"],"6":[626,"M326 -360Q281 -360 259 -328Q237 -296 237 -232Q237 -168 259 -136Q281 -104 326 -104Q371 -104 393 -136Q415 -168 415 -232Q415 -296 393 -328Q371 -360 326 -360ZM535 -710V-575Q493 -597 456 -608Q419 -618 384 -618Q309 -618 266 -572Q224 -525 217 -433Q246 -457 280 -469Q314 -481 354 -481Q455 -481 516 -416Q578 -350 578 -244Q578 -127 509 -56Q440 14 324 14Q196 14 126 -82Q56 -178 56 -354Q56 -535 138 -638Q220 -741 362 -741Q408 -741 450 -733Q493 -726 535 -710Z"],"7":[626,"M60 -729H555V-623L299 0H134L376 -591H60Z"],"8":[626,"M313 -326Q266 -326 240 -297Q215 -269 215 -215Q215 -161 240 -133Q266 -104 313 -104Q360 -104 385 -133Q411 -161 411 -215Q411 -269 385 -298Q360 -326 313 -326ZM190 -388Q130 -408 100 -450Q69 -491 69 -553Q69 -646 131 -694Q193 -742 313 -742Q433 -742 494 -694Q556 -646 556 -553Q556 -491 526 -450Q495 -408 436 -388Q502 -368 536 -322Q570 -275 570 -205Q570 -97 506 -41Q441 14 313 14Q186 14 120 -41Q55 -97 55 -205Q55 -275 89 -322Q123 -368 190 -388ZM229 -534Q229 -491 251 -467Q273 -444 313 -444Q353 -444 375 -467Q396 -491 396 -534Q396 -578 375 -601Q353 -624 313 -624Q273 -624 251 -601Q229 -577 229 -534Z"],"9":[626,"M90 -16V-151Q130 -130 167 -119Q204 -109 240 -109Q316 -109 358 -156Q400 -202 408 -294Q378 -270 344 -257Q310 -245 271 -245Q170 -245 108 -310Q46 -375 46 -482Q46 -600 115 -670Q184 -741 300 -741Q428 -741 499 -645Q569 -549 569 -373Q569 -192 487 -89Q404 14 261 14Q215 14 173 7Q130 -1 90 -16ZM299 -367Q343 -367 366 -399Q388 -431 388 -495Q388 -559 366 -591Q343 -623 299 -623Q254 -623 232 -591Q209 -559 209 -495Q209 -431 232 -399Q254 -367 299 -367Z"],"-":[374,"M49 -359H325V-217H49Z"],"+":[754,"M429 -627V-371H659V-256H429V0H325V-256H95V-371H325V-627Z"],".":[342,"M92 -189H250V0H92Z"],",":[342,"M92 -189H250V-40L142 142H48L92 -40Z"],":":[360,"M101 -547H259V-358H101ZM101 -189H259V0H101Z"],"/":[329,"M231 -729H329L97 93H0Z"],"\u00b7":[342,"M92 -442H250V-253H92Z"]};
+const AP_LAMP_SEL = '.sv-ann, .sv-key, .an-amber, .an-green, .an-lens, .sn-ltbtn';
+const AP_SND_DUR = {"v_kurs": 1.1, "v_glis": 0.85, "v_vpr": 1.16, "v_apoff": 1.43, "v_speed": 1.13, "v_30": 0.55, "v_20": 0.66, "v_10": 0.58, "v_5": 0.45, "v_autoland": 1.57, "v_touch": 0.76, "snps_on": 5.22, "klapka": 0.3, "przelacznik": 0.25, "przycisk": 0.2};
+const AP_GLYPHS = {"\u00ab":[600,"M300 -560 L80 -300 L300 -40 L380 -40 L180 -300 L380 -560Z M520 -560 L300 -300 L520 -40 L600 -40 L400 -300 L600 -560Z"],"\u00bb":[600,"M300 -560 L520 -300 L300 -40 L220 -40 L420 -300 L220 -560Z M80 -560 L300 -300 L80 -40 L0 -40 L200 -300 L0 -560Z"],"\u00b0":[400,"M200 -760A120 120 0 1 1 199.9 -760ZM200 -700A60 60 0 1 0 200.1 -700Z"],"\u00d7":[754,"M642 -525 451 -313 642 -102 568 -20 377 -231 187 -20 112 -102 303 -313 112 -525 187 -607 377 -395 568 -607Z"],"\u0410":[696,"M481 -133H216L174 0H4L248 -729H449L692 0H522ZM258 -268H438L349 -558Z"],"\u0411":[686,"M351 -128Q404 -128 428 -150Q454 -174 454 -219Q454 -264 428 -287Q405 -309 351 -309H252V-128ZM363 0H83V-729H579V-587H252V-451H363Q488 -451 559 -394Q623 -342 623 -225Q623 -109 559 -57Q488 0 363 0Z"],"\u0412":[686,"M345 -447Q385 -447 406 -466Q427 -486 427 -524Q427 -562 406 -581Q385 -601 345 -601H252V-447ZM351 -128Q402 -128 428 -152Q454 -176 454 -224Q454 -271 428 -295Q402 -319 351 -319H252V-128ZM508 -390Q563 -373 593 -325Q623 -278 623 -209Q623 -104 558 -52Q494 0 363 0H83V-729H336Q473 -729 534 -683Q596 -637 596 -536Q596 -483 573 -446Q551 -408 508 -390Z"],"\u0413":[573,"M83 0V-729H549V-587H252V0Z"],"\u0414":[801,"M303 -142H485V-587H344V-542Q344 -230 303 -142ZM104 -142Q149 -176 162 -225Q174 -275 174 -591V-729H655V-142H748V157H620V0H182V157H54V-142Z"],"\u0415":[615,"M83 -729H539V-587H252V-451H522V-309H252V-142H549V0H83Z"],"\u0416":[1102,"M13 0 282 -437 42 -729H219L466 -428V-729H635V-428L882 -729H1060L820 -437L1088 0H902L714 -307L635 -212V0H466V-212L388 -307L200 0Z"],"\u0417":[639,"M445 -393Q511 -374 546 -327Q580 -280 580 -207Q580 -99 505 -42Q431 14 274 14Q209 14 158 5Q107 -4 60 -22V-167Q107 -141 154 -127Q200 -114 268 -114Q339 -114 375 -140Q411 -166 411 -214Q411 -264 374 -289Q337 -315 253 -315H172V-436H256Q333 -436 364 -458Q396 -480 396 -526Q396 -568 365 -591Q335 -614 275 -614Q213 -614 159 -602Q104 -590 74 -573V-711Q104 -722 168 -732Q233 -742 274 -742Q418 -742 491 -696Q564 -649 564 -555Q564 -491 534 -450Q504 -410 445 -393Z"],"\u0418":[753,"M670 -729V0H510V-500L271 0H83V-729H243V-229L481 -729Z"],"\u0419":[753,"M670 -729V0H510V-500L271 0H83V-729H243V-229L481 -729ZM214 -927H277Q286 -897 307 -883Q329 -868 362 -868Q396 -868 417 -883Q438 -897 447 -927H510Q502 -864 465 -831Q427 -798 362 -798Q297 -798 259 -831Q221 -864 214 -927Z"],"\u041a":[735,"M83 -729H252V-428L517 -729H708L447 -434L723 0H536L339 -311L252 -212V0H83Z"],"\u041b":[747,"M42 0V-142Q153 -156 175 -237Q198 -317 198 -591V-729H665V0H496V-587H367V-542Q367 -275 324 -151Q282 -27 42 0Z"],"\u041c":[896,"M83 -729H298L447 -339L598 -729H812V0H652V-533L501 -140H394L243 -533V0H83Z"],"\u041d":[753,"M83 -729H252V-451H501V-729H670V0H501V-309H252V0H83Z"],"\u041e":[765,"M382 -606Q305 -606 262 -542Q220 -479 220 -364Q220 -249 262 -186Q305 -122 382 -122Q460 -122 503 -186Q545 -249 545 -364Q545 -479 503 -542Q460 -606 382 -606ZM382 -742Q541 -742 630 -642Q720 -541 720 -364Q720 -187 630 -86Q541 14 382 14Q225 14 135 -86Q45 -187 45 -364Q45 -541 135 -642Q225 -742 382 -742Z"],"\u041f":[753,"M670 -729V0H501V-587H252V0H83V-729Z"],"\u0420":[659,"M83 -729H363Q489 -729 556 -667Q623 -605 623 -491Q623 -376 556 -315Q489 -253 363 -253H252V0H83ZM252 -593V-389H345Q395 -389 421 -416Q448 -442 448 -491Q448 -540 421 -566Q395 -593 345 -593Z"],"\u0421":[660,"M603 -40Q556 -13 506 0Q455 14 400 14Q236 14 141 -88Q45 -189 45 -364Q45 -539 141 -640Q236 -742 400 -742Q455 -742 506 -729Q556 -715 603 -688V-537Q556 -573 510 -589Q464 -606 414 -606Q323 -606 271 -542Q220 -477 220 -364Q220 -251 271 -187Q323 -122 414 -122Q464 -122 510 -139Q556 -155 603 -191Z"],"\u0422":[614,"M4 -729H609V-587H392V0H222V-587H4Z"],"\u0423":[694,"M409 -121Q392 -80 366 -53Q313 0 164 0H133V-142H179Q241 -142 255 -176Q259 -183 262 -190L26 -729H203L348 -397L490 -729H667Z"],"\u0424":[892,"M220 -372Q220 -298 254 -266Q288 -233 362 -226V-518Q288 -511 254 -478Q220 -445 220 -372ZM673 -372Q673 -445 639 -478Q604 -511 531 -518V-226Q604 -233 639 -266Q673 -298 673 -372ZM362 -729H531V-657Q692 -642 770 -575Q847 -508 847 -372Q847 -235 770 -168Q692 -102 531 -87V0H362V-87Q200 -102 123 -168Q45 -235 45 -372Q45 -508 123 -575Q200 -642 362 -657Z"],"\u0425":[694,"M448 -372 676 0H500L346 -249L194 0H17L245 -372L26 -729H203L346 -494L490 -729H667Z"],"\u0426":[835,"M653 0H83V-729H252V-142H501V-729H670V-142H781V157H653Z"],"\u0427":[727,"M476 0V-278H246Q163 -278 117 -335Q72 -393 72 -505V-729H242V-595Q242 -479 258 -450Q274 -420 315 -420H476V-729H645V0Z"],"\u0428":[1112,"M640 -142H859V-729H1029V0H83V-729H252V-142H471V-729H640Z"],"\u0429":[1193,"M1029 -142H1139V157H1011V0H83V-729H252V-142H471V-729H640V-142H859V-729H1029Z"],"\u042a":[845,"M529 -128Q582 -128 607 -151Q631 -174 631 -219Q631 -264 607 -286Q583 -309 529 -309H430V-128ZM261 -587H44V-729H430V-451H542Q666 -451 733 -397Q801 -342 801 -225Q801 -109 733 -54Q666 0 542 0H261Z"],"\u042b":[932,"M351 -128Q404 -128 428 -150Q454 -174 454 -219Q454 -264 428 -287Q405 -309 351 -309H252V-128ZM623 -225Q623 -109 559 -57Q488 0 363 0H83V-729H252V-451H363Q488 -451 559 -394Q623 -342 623 -225ZM681 -729H850V0H681Z"],"\u042c":[686,"M351 -128Q404 -128 428 -150Q454 -174 454 -219Q454 -264 428 -287Q405 -309 351 -309H252V-128ZM623 -225Q623 -109 559 -57Q488 0 363 0H83V-729H252V-451H363Q488 -451 559 -394Q623 -342 623 -225Z"],"\u042d":[660,"M58 -191Q148 -122 243 -122Q338 -122 382 -178Q427 -234 434 -293H139V-435H434Q427 -494 382 -550Q338 -606 243 -606Q148 -606 58 -537V-688Q151 -742 260 -742Q424 -742 520 -640Q616 -539 616 -364Q616 -189 520 -88Q424 14 260 14Q151 14 58 -40Z"],"\u042e":[1056,"M336 -435Q348 -558 430 -650Q512 -742 669 -742Q828 -742 917 -642Q1007 -541 1007 -364Q1007 -187 917 -86Q828 14 669 14Q512 14 430 -78Q348 -170 336 -293H252V0H83V-729H252V-435ZM669 -606Q592 -606 549 -542Q507 -479 507 -364Q507 -249 549 -186Q592 -122 669 -122Q747 -122 790 -186Q833 -249 833 -364Q833 -479 790 -542Q747 -606 669 -606Z"],"\u042f":[693,"M257 -500Q257 -450 281 -428Q304 -406 357 -406H441V-593H357Q304 -593 281 -571Q257 -550 257 -500ZM58 0 221 -310Q188 -331 138 -383Q88 -436 88 -508Q88 -618 149 -673Q209 -729 339 -729H610V0H441V-276H384L238 0Z"],"\u0401":[615,"M163 -927H266V-807H163ZM336 -927H440V-807H336ZM83 -729H539V-587H252V-451H522V-309H252V-142H549V0H83Z"],"A":[696,"M481 -133H216L174 0H4L248 -729H449L692 0H522ZM258 -268H438L349 -558Z"],"B":[686,"M345 -447Q385 -447 406 -466Q427 -486 427 -524Q427 -562 406 -581Q385 -601 345 -601H252V-447ZM351 -128Q402 -128 428 -152Q454 -176 454 -224Q454 -271 428 -295Q402 -319 351 -319H252V-128ZM508 -390Q563 -373 593 -325Q623 -278 623 -209Q623 -104 558 -52Q494 0 363 0H83V-729H336Q473 -729 534 -683Q596 -637 596 -536Q596 -483 573 -446Q551 -408 508 -390Z"],"C":[660,"M603 -40Q556 -13 506 0Q455 14 400 14Q236 14 141 -88Q45 -189 45 -364Q45 -539 141 -640Q236 -742 400 -742Q455 -742 506 -729Q556 -715 603 -688V-537Q556 -573 510 -589Q464 -606 414 -606Q323 -606 271 -542Q220 -477 220 -364Q220 -251 271 -187Q323 -122 414 -122Q464 -122 510 -139Q556 -155 603 -191Z"],"D":[747,"M252 -587V-142H312Q416 -142 471 -199Q525 -256 525 -365Q525 -474 471 -530Q417 -587 312 -587ZM83 -729H261Q411 -729 484 -705Q557 -682 609 -625Q655 -576 678 -511Q700 -447 700 -365Q700 -283 678 -218Q655 -153 609 -104Q556 -47 482 -24Q409 0 261 0H83Z"],"E":[615,"M83 -729H539V-587H252V-451H522V-309H252V-142H549V0H83Z"],"F":[615,"M83 -729H539V-587H252V-451H522V-309H252V0H83Z"],"G":[738,"M672 -54Q609 -20 541 -3Q473 14 400 14Q236 14 141 -88Q45 -189 45 -364Q45 -540 142 -641Q240 -742 410 -742Q475 -742 535 -729Q595 -715 648 -688V-537Q593 -572 539 -589Q485 -606 430 -606Q329 -606 274 -543Q220 -480 220 -364Q220 -248 272 -185Q325 -122 422 -122Q449 -122 471 -126Q494 -129 512 -137V-279H409V-405H672Z"],"H":[753,"M83 -729H252V-451H501V-729H670V0H501V-309H252V0H83Z"],"I":[334,"M83 -729H252V0H83Z"],"J":[334,"M83 -729H252V-71Q252 65 186 133Q119 200 -16 200H-50V58H-24Q29 58 56 25Q83 -7 83 -71Z"],"K":[697,"M83 -729H252V-463L496 -729H692L376 -384L725 0H513L252 -287V0H83Z"],"L":[573,"M83 -729H252V-142H549V0H83Z"],"M":[896,"M83 -729H298L447 -339L598 -729H812V0H652V-533L501 -140H394L243 -533V0H83Z"],"N":[753,"M83 -729H271L510 -229V-729H670V0H481L243 -500V0H83Z"],"O":[765,"M382 -606Q305 -606 262 -542Q220 -479 220 -364Q220 -249 262 -186Q305 -122 382 -122Q460 -122 503 -186Q545 -249 545 -364Q545 -479 503 -542Q460 -606 382 -606ZM382 -742Q541 -742 630 -642Q720 -541 720 -364Q720 -187 630 -86Q541 14 382 14Q225 14 135 -86Q45 -187 45 -364Q45 -541 135 -642Q225 -742 382 -742Z"],"P":[659,"M83 -729H363Q489 -729 556 -667Q623 -605 623 -491Q623 -376 556 -315Q489 -253 363 -253H252V0H83ZM252 -593V-389H345Q395 -389 421 -416Q448 -442 448 -491Q448 -540 421 -566Q395 -593 345 -593Z"],"Q":[765,"M400 13H387Q225 13 135 -86Q45 -186 45 -364Q45 -541 135 -642Q225 -742 382 -742Q542 -742 631 -643Q720 -543 720 -364Q720 -241 673 -152Q625 -63 537 -18L669 146H508ZM382 -606Q305 -606 262 -542Q220 -479 220 -364Q220 -247 261 -184Q303 -122 382 -122Q460 -122 503 -186Q545 -249 545 -364Q545 -479 503 -542Q460 -606 382 -606Z"],"R":[693,"M323 -406Q376 -406 399 -428Q422 -450 422 -500Q422 -550 399 -571Q376 -593 323 -593H252V-406ZM252 -276V0H83V-729H341Q471 -729 531 -681Q591 -632 591 -528Q591 -456 560 -409Q529 -363 465 -341Q500 -332 528 -301Q555 -270 583 -207L675 0H495L415 -181Q391 -236 366 -256Q341 -276 300 -276Z"],"S":[648,"M539 -706V-552Q485 -579 434 -592Q382 -606 336 -606Q276 -606 247 -587Q218 -569 218 -530Q218 -500 237 -484Q257 -468 309 -456L380 -440Q490 -416 536 -366Q582 -316 582 -224Q582 -104 518 -45Q454 14 321 14Q259 14 196 1Q133 -12 70 -38V-197Q133 -160 192 -141Q250 -122 305 -122Q360 -122 390 -143Q419 -163 419 -201Q419 -235 399 -254Q379 -272 319 -287L254 -303Q156 -327 110 -378Q64 -429 64 -516Q64 -625 128 -684Q191 -742 310 -742Q364 -742 421 -733Q478 -724 539 -706Z"],"T":[614,"M4 -729H609V-587H392V0H222V-587H4Z"],"U":[730,"M83 -729H252V-292Q252 -202 279 -163Q305 -124 365 -124Q426 -124 452 -163Q479 -202 479 -292V-729H648V-292Q648 -137 578 -62Q508 14 365 14Q222 14 152 -62Q83 -137 83 -292Z"],"V":[696,"M4 -729H174L349 -191L522 -729H692L449 0H248Z"],"W":[993,"M27 -729H189L302 -199L415 -729H578L690 -199L804 -729H965L810 0H615L496 -554L378 0H183Z"],"X":[694,"M448 -372 676 0H500L346 -249L194 0H17L245 -372L26 -729H203L346 -494L490 -729H667Z"],"Y":[651,"M-9 -729H176L326 -469L475 -729H661L411 -307V0H241V-307Z"],"Z":[652,"M51 -729H602V-615L250 -142H612V0H41V-114L393 -587H51Z"],"0":[626,"M414 -365Q414 -502 391 -558Q368 -614 313 -614Q259 -614 236 -558Q212 -502 212 -365Q212 -227 236 -170Q259 -114 313 -114Q367 -114 391 -170Q414 -227 414 -365ZM583 -364Q583 -183 513 -84Q442 14 313 14Q184 14 113 -84Q43 -183 43 -364Q43 -545 113 -644Q184 -742 313 -742Q442 -742 513 -644Q583 -545 583 -364Z"],"1":[626,"M105 -130H255V-601L102 -566V-694L254 -729H415V-130H564V0H105Z"],"2":[626,"M259 -138H548V0H71V-138L311 -373Q343 -405 358 -436Q374 -467 374 -500Q374 -551 343 -583Q312 -614 260 -614Q221 -614 174 -595Q126 -576 73 -539V-699Q130 -720 186 -731Q242 -742 295 -742Q413 -742 478 -685Q543 -627 543 -524Q543 -464 516 -413Q488 -361 399 -275Z"],"3":[626,"M419 -393Q485 -374 520 -327Q555 -280 555 -207Q555 -99 480 -42Q405 14 262 14Q211 14 161 5Q110 -4 60 -22V-167Q107 -141 154 -127Q201 -114 247 -114Q314 -114 350 -140Q385 -166 385 -214Q385 -264 349 -289Q312 -315 240 -315H173V-436H244Q308 -436 339 -458Q370 -480 370 -526Q370 -568 340 -591Q310 -614 254 -614Q213 -614 171 -604Q130 -593 88 -573V-711Q139 -727 188 -734Q237 -742 284 -742Q412 -742 476 -696Q539 -649 539 -555Q539 -491 509 -450Q479 -410 419 -393Z"],"4":[626,"M332 -574 146 -269H332ZM303 -729H491V-269H585V-133H491V0H332V-133H41V-294Z"],"5":[626,"M95 -729H516V-591H230V-478Q250 -484 269 -487Q289 -490 310 -490Q430 -490 497 -424Q563 -357 563 -238Q563 -120 491 -53Q418 14 289 14Q233 14 178 2Q124 -10 69 -34V-182Q123 -148 171 -131Q219 -114 262 -114Q323 -114 359 -147Q394 -181 394 -238Q394 -295 359 -329Q323 -362 262 -362Q226 -362 184 -351Q143 -341 95 -319Z"],"6":[626,"M326 -360Q281 -360 259 -328Q237 -296 237 -232Q237 -168 259 -136Q281 -104 326 -104Q371 -104 393 -136Q415 -168 415 -232Q415 -296 393 -328Q371 -360 326 -360ZM535 -710V-575Q493 -597 456 -608Q419 -618 384 -618Q309 -618 266 -572Q224 -525 217 -433Q246 -457 280 -469Q314 -481 354 -481Q455 -481 516 -416Q578 -350 578 -244Q578 -127 509 -56Q440 14 324 14Q196 14 126 -82Q56 -178 56 -354Q56 -535 138 -638Q220 -741 362 -741Q408 -741 450 -733Q493 -726 535 -710Z"],"7":[626,"M60 -729H555V-623L299 0H134L376 -591H60Z"],"8":[626,"M313 -326Q266 -326 240 -297Q215 -269 215 -215Q215 -161 240 -133Q266 -104 313 -104Q360 -104 385 -133Q411 -161 411 -215Q411 -269 385 -298Q360 -326 313 -326ZM190 -388Q130 -408 100 -450Q69 -491 69 -553Q69 -646 131 -694Q193 -742 313 -742Q433 -742 494 -694Q556 -646 556 -553Q556 -491 526 -450Q495 -408 436 -388Q502 -368 536 -322Q570 -275 570 -205Q570 -97 506 -41Q441 14 313 14Q186 14 120 -41Q55 -97 55 -205Q55 -275 89 -322Q123 -368 190 -388ZM229 -534Q229 -491 251 -467Q273 -444 313 -444Q353 -444 375 -467Q396 -491 396 -534Q396 -578 375 -601Q353 -624 313 -624Q273 -624 251 -601Q229 -577 229 -534Z"],"9":[626,"M90 -16V-151Q130 -130 167 -119Q204 -109 240 -109Q316 -109 358 -156Q400 -202 408 -294Q378 -270 344 -257Q310 -245 271 -245Q170 -245 108 -310Q46 -375 46 -482Q46 -600 115 -670Q184 -741 300 -741Q428 -741 499 -645Q569 -549 569 -373Q569 -192 487 -89Q404 14 261 14Q215 14 173 7Q130 -1 90 -16ZM299 -367Q343 -367 366 -399Q388 -431 388 -495Q388 -559 366 -591Q343 -623 299 -623Q254 -623 232 -591Q209 -559 209 -495Q209 -431 232 -399Q254 -367 299 -367Z"],"-":[374,"M49 -359H325V-217H49Z"],"+":[754,"M429 -627V-371H659V-256H429V0H325V-256H95V-371H325V-627Z"],".":[342,"M92 -189H250V0H92Z"],",":[342,"M92 -189H250V-40L142 142H48L92 -40Z"],":":[360,"M101 -547H259V-358H101ZM101 -189H259V0H101Z"],"/":[329,"M231 -729H329L97 93H0Z"],"\u00b7":[342,"M92 -442H250V-253H92Z"]};
 
 // zamienia tekst na HTML z wektorowymi literami (znaki bez konturu zostaja zwyklym tekstem)
 function apRu(text) {
@@ -319,6 +379,7 @@ function apRu(text) {
                 'em"><path d="' + g[1] + '"/></svg>';
         } else if (ch === "<") out += "&lt;";
         else if (ch === "&") out += "&amp;";
+        else if (ch === "\n") out += "<br>";
         else out += ch;
     }
     return out;
@@ -359,7 +420,7 @@ const AP_SKIN_CSS = `
  background:linear-gradient(#030303,#171818);box-shadow:0 1px 0 rgba(255,255,255,.14),inset 0 1px 4px #000}
 .sv-lens{display:flex;flex-direction:column;align-items:center;justify-content:center;width:100%;height:100%;border-radius:2px;
  color:#16120a;font-size:13px;line-height:1.2;
- background:linear-gradient(180deg,rgba(255,255,255,.20) 0%,rgba(255,255,255,0) 42%),
+ background:linear-gradient(180deg,rgba(255,255,255,.18) 0%,rgba(255,255,255,0) 42%),
  radial-gradient(ellipse at 50% 55%,#c7a24b 0%,#b08b36 62%,#8a6a22 100%);
  box-shadow:inset 0 0 0 1px rgba(0,0,0,.4),inset 0 -4px 6px rgba(0,0,0,.30),inset 0 2px 2px rgba(255,255,255,.15)}
 .sv-lens .sv-g{margin-right:.5px}
@@ -367,7 +428,7 @@ const AP_SKIN_CSS = `
 .sv-lens{white-space:nowrap}
 .sv-lens.sv-long{font-size:11px}
 .sv-key:active{transform:translateY(1px)}
-.sv-key:active .sv-lens{filter:brightness(.9)}
+.sv-key:active .sv-lens{box-shadow:inset 0 0 0 40px rgba(0,0,0,.10)}
 .sv-key[activated="true"]{box-shadow:0 1px 0 rgba(255,255,255,.14),inset 0 1px 4px #000,0 0 10px 1px rgba(255,190,70,.30)}
 .sv-key[activated="true"] .sv-lens{
  background:linear-gradient(180deg,rgba(255,255,255,.28) 0%,rgba(255,255,255,0) 40%),
@@ -378,7 +439,7 @@ const AP_SKIN_CSS = `
  radial-gradient(ellipse at 50% 55%,#5f9a6e 0%,#427957 62%,#2c5539 100%)}
 .sv-key.sv-green[activated="true"]{box-shadow:0 1px 0 rgba(255,255,255,.14),inset 0 1px 4px #000,0 0 10px 1px rgba(90,235,150,.30)}
 .sv-key.sv-green[activated="true"] .sv-lens{
- background:linear-gradient(180deg,rgba(255,255,255,.30) 0%,rgba(255,255,255,0) 40%),
+ background:linear-gradient(180deg,rgba(255,255,255,.28) 0%,rgba(255,255,255,0) 40%),
  radial-gradient(ellipse at 50% 50%,#e4ffe9 0%,#9deebb 48%,#45c37a 100%);
  box-shadow:inset 0 0 0 1px rgba(0,70,30,.45),inset 0 -3px 5px rgba(0,90,40,.30)}
 .sv-keys .sv-lens{font-size:12px}
@@ -389,12 +450,12 @@ const AP_SKIN_CSS = `
  radial-gradient(ellipse at 50% 55%,#3f8f93 0%,#2c7276 62%,#1d5054 100%)}
 .sv-key.sv-cyan[activated="true"]{box-shadow:0 1px 0 rgba(255,255,255,.14),inset 0 1px 4px #000,0 0 10px 1px rgba(80,230,240,.35)}
 .sv-key.sv-cyan[activated="true"] .sv-lens{
- background:linear-gradient(180deg,rgba(255,255,255,.30) 0%,rgba(255,255,255,0) 40%),
+ background:linear-gradient(180deg,rgba(255,255,255,.28) 0%,rgba(255,255,255,0) 40%),
  radial-gradient(ellipse at 50% 50%,#e6ffff 0%,#8ff0f4 48%,#35bfc6 100%);
  box-shadow:inset 0 0 0 1px rgba(0,70,80,.45),inset 0 -3px 5px rgba(0,90,100,.30)}
 .sv-btn.sv-litc{color:#7ff3f7;text-shadow:0 0 6px rgba(80,230,240,.7)}
 .sv-key.sv-red .sv-lens{
- background:linear-gradient(180deg,rgba(255,255,255,.16) 0%,rgba(255,255,255,0) 42%),
+ background:linear-gradient(180deg,rgba(255,255,255,.18) 0%,rgba(255,255,255,0) 42%),
  radial-gradient(ellipse at 50% 55%,#b8582b 0%,#8f4220 62%,#6a2f15 100%)}
 .sv-key.sv-red[activated="true"]{box-shadow:0 1px 0 rgba(255,255,255,.14),inset 0 1px 4px #000,0 0 10px 1px rgba(255,120,50,.35)}
 .sv-key.sv-red[activated="true"] .sv-lens{
@@ -415,7 +476,7 @@ const AP_SKIN_CSS = `
  background:linear-gradient(#2c2e30,#151617);
  box-shadow:inset 0 1px 0 rgba(255,255,255,.16),inset 0 -2px 2px rgba(0,0,0,.55),0 1px 1px rgba(0,0,0,.7)}
 .sv-rock svg{width:9px;height:9px;fill:#d9d5c2;opacity:.92}
-.sv-rock:active{transform:translateY(1px);filter:brightness(.8)}
+.sv-rock:active{transform:translateY(1px);box-shadow:inset 0 0 0 30px rgba(0,0,0,.2)}
 .sv-ctr{position:relative;display:flex;margin:4px;padding:3px;border-radius:3px;background:#000;
  box-shadow:0 0 0 1px #000,0 0 0 3px #3a3c3e,0 0 0 4px #0c0d0d,0 1px 0 4px rgba(255,255,255,.08),inset 0 0 7px #000}
 .sv-ctr::after{content:"";position:absolute;left:0;top:0;right:0;bottom:0;border-radius:3px;pointer-events:none;
@@ -438,7 +499,7 @@ const AP_SKIN_CSS = `
  background:linear-gradient(#2c2e30,#151617);color:#d9d5c2;font-size:11px;cursor:pointer;
  box-shadow:inset 0 1px 0 rgba(255,255,255,.16),inset 0 -2px 3px rgba(0,0,0,.55),0 1px 2px rgba(0,0,0,.7)}
 .sv-mini .sv-g{margin-right:1.4px}
-.sv-mini:active{transform:translateY(1px);filter:brightness(.85)}
+.sv-mini:active{transform:translateY(1px);box-shadow:inset 0 0 0 40px rgba(0,0,0,.15)}
 .sv-skinbtn{flex:0 0 64px}
 .sv-navrow{margin-bottom:14px}
 .sv-nav{flex:1;justify-content:space-between;gap:10px;padding:19px 14px 9px}
@@ -449,7 +510,7 @@ const AP_SKIN_CSS = `
  background:linear-gradient(#2c2e30,#151617);color:#d9d5c2;font-size:11px;cursor:pointer;
  box-shadow:inset 0 1px 0 rgba(255,255,255,.16),inset 0 -2px 3px rgba(0,0,0,.55),0 1px 2px rgba(0,0,0,.7)}
 .sv-btn .sv-g{margin-right:1.4px}
-.sv-btn:active{transform:translateY(1px);filter:brightness(.85)}
+.sv-btn:active{transform:translateY(1px);box-shadow:inset 0 0 0 60px rgba(0,0,0,.15)}
 .sv-cell.sv-dot{width:8px}
 .sv-cell.sv-pick{box-shadow:inset 0 -3px 0 #e39a1a}
 .sv-altctr{cursor:pointer}
@@ -482,7 +543,7 @@ const AP_SKIN_CSS = `
 .sv-tfcol{position:relative;flex:none;width:40px;height:56px;cursor:pointer}
 .sv-banksel{position:relative;flex:none;cursor:pointer}
 .sv-bssvg{position:absolute;left:0;top:0;overflow:visible}
-.sv-bsd{position:absolute;text-align:center;line-height:1;color:#e6e3d6;opacity:.72;white-space:nowrap}
+.sv-bsd{position:absolute;text-align:center;line-height:1;color:#e6e3d6;opacity:.72;white-space:nowrap;text-shadow:.6px .8px 0 rgba(0,0,0,.6)}
 .sv-bsd.sv-on{opacity:1}
 .sv-bsd .sv-g{margin-right:.5px}
 .sv-bankrow{display:flex;align-items:center;justify-content:center;gap:14px;height:74px;margin:0 4px;box-sizing:border-box;
@@ -490,6 +551,9 @@ const AP_SKIN_CSS = `
 .sv-bankcap{font-size:10px;color:#d9d5c2;line-height:1.35;text-align:right}
 .sv-bankcap .sv-g{margin-right:1.2px}
 .sv-bottom > .sv-bankrow{flex:0 0 auto;height:auto;padding:2px 8px;margin:4px 0}
+.sv-hdgbank{gap:4px}
+.sv-hbk{display:flex;flex-direction:column;align-items:center;margin-left:2px}
+.sv-hbk .sv-ncap{margin-top:0;font-size:7.5px;white-space:nowrap}
 .sv-tf{position:absolute;left:0;top:0;width:24px;height:56px}
 .sv-tf .an-tg{position:absolute;left:0;top:0;width:24px;height:56px;overflow:visible}
 .sv-tf .p-up,.sv-tf .p-mid,.sv-tf .p-down{display:none}
@@ -497,6 +561,104 @@ const AP_SKIN_CSS = `
 .sv-tfl{position:absolute;left:25px;font-size:10px;color:#9b988b}
 .sv-tfa{top:2px}.sv-tfb{bottom:2px}
 .sv-tfl.sv-on{color:#e9e5d4}
+.sn-xlamp{
+ box-shadow:0 0 0 3px #3a3c3f,0 0 0 4px #0b0c0d,0 2px 4px rgba(0,0,0,.8),inset 0 0 6px rgba(0,0,0,.85);
+ background:radial-gradient(circle at 36% 30%,rgba(255,255,255,.35) 0,rgba(255,255,255,0) 30%),radial-gradient(circle,#7a6510 0%,#3a2f04 100%)}
+.sn-xlamp[activated="true"]{background:radial-gradient(circle at 36% 30%,rgba(255,255,255,.75) 0,rgba(255,255,255,0) 34%),radial-gradient(circle,#fffbd0 0%,#ffe03a 45%,#d9a800 100%);
+ box-shadow:0 0 0 3px #3a3c3f,0 0 0 4px #0b0c0d,0 0 14px 5px rgba(255,220,60,.6),0 2px 4px rgba(0,0,0,.8)}
+.sn-nixbz{padding:3px;border-radius:5px;background:linear-gradient(135deg,#4a4d50,#1c1d1f 55%,#0d0e0f);box-shadow:0 1px 3px rgba(0,0,0,.8),inset 0 1px 0 rgba(255,255,255,.15)}
+.sn-nix{display:flex;gap:3px;padding:4px 5px 6px;border-radius:3px;background:#0b0b0c;box-shadow:inset 0 2px 5px #000}
+.sn-tube{width:25px;height:36px;border-radius:13px 13px 5px 5px;overflow:hidden;display:flex;align-items:center;justify-content:center;
+ background:#120e0b;border-bottom:4px solid #2a2420;
+ box-shadow:inset 5px 0 4px rgba(255,255,255,.10),inset -4px 0 6px rgba(0,0,0,.7),inset 0 -6px 4px rgba(0,0,0,.6),0 0 0 1px #000}
+.sn-tube.sn-lit{background:#3a1a08}
+.sn-nch{font-size:22px;line-height:1;color:rgba(110,70,45,.28)}
+.sn-lit .sn-nch{color:#ffb060}
+.sn-box{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.sn-guard{flex:0 0 100px;display:flex;flex-direction:column;align-items:center}
+.sn-lamp{width:30px;height:30px;margin:0 0 0 -8px}
+.sn-lamp svg{display:block}
+.sn-gw{position:relative;width:116px;height:130px}
+.sn-gw > svg{display:block}
+.sn-guard .sv-ncap{white-space:nowrap;margin:2px 0 0 -16px}
+.sn-hit{position:absolute;left:8px;top:0;width:80px;height:130px;cursor:pointer}
+.sn-hitb{top:28px;height:86px}
+.sn-kpp{flex:0 0 140px;height:140px}
+.sn-kpp svg{display:block}
+.sn-kcol{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;flex:0 0 auto}
+.sn-spd{display:flex;align-items:flex-end;gap:3px}
+.sn-spd .sv-rocks{margin-bottom:14px}
+.sn-spd .sv-ncap{white-space:nowrap;font-size:8.5px;margin-top:2px}
+.sn-mid{flex:0 0 auto;display:flex;flex-direction:column;gap:9px}
+.sn-lamps{display:flex;flex-wrap:wrap;gap:5px;width:176px}
+.sn-lamps .sv-ann{min-width:0;width:85px;height:20px;padding:0 2px;font-size:9px}
+.sn-nixrow{display:flex;align-items:flex-start;justify-content:space-between;gap:6px}
+.sn-nixwrap{display:flex;flex-direction:column;align-items:center}
+.sn-nixwrap .sv-ncap{margin-top:4px;font-size:8.5px;white-space:nowrap}
+.sn-apbtns{display:flex;flex-direction:column;gap:5px;margin-top:2px}
+.sn-apbtn{width:42px;height:22px;font-size:9px}
+.sn-ctrs{flex:0 0 auto;display:flex;flex-direction:column;gap:4px;align-items:flex-start}
+.sn-row{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.sn-ctr{margin:2px}
+.sn-ctr .sv-cell{width:13px;height:26px;font-size:18px;line-height:26px}
+.sn-ctr .sv-cell.sv-dot{width:6px}
+.sn-row .sv-ncap{margin-top:3px;font-size:8.5px;white-space:nowrap}
+.sn-extra{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:4px}
+.sn-key{width:74px;height:34px;padding:2px}
+.sn-key .sv-lens{font-size:10.5px}
+.sn-xcol{display:flex;flex-direction:column;align-items:center}
+.sn-xcol .sv-ncap{white-space:nowrap;margin:1px 0}
+.sn-ltcol{gap:2px}
+.sn-lsw{position:relative;width:76px;height:52px}
+.sn-lsw > svg{display:block}
+.sn-hit2{position:absolute;left:0;top:0;width:76px;height:40px;cursor:pointer}
+.sv-sn{flex:1;height:auto;padding:20px 12px 10px}
+.sv-snrow{margin-bottom:14px}
+.sv-sn .sn-box{width:100%;flex-wrap:nowrap;gap:5px;align-items:stretch}
+.sv-sn .sn-grp{padding:16px 8px 8px}
+.sv-sn .sn-kpp{align-self:center}
+.sv-sn .sn-ctrs{gap:2px;align-items:center}
+.sv-sn .sn-extra{gap:3px}
+.sv-plate .sv-sn .sn-kpp{flex-basis:94px;height:94px}
+.sv-plate .sv-sn .sn-kpp svg{width:94px;height:94px}
+.sv-sn .sn-gc{flex:1 1 auto}
+.sv-sn .sn-mid{gap:7px;align-items:center}
+.sn-crow{display:flex;align-items:flex-end;justify-content:center;gap:6px}
+.sn-crow .sn-ctr .sv-cell{width:11px}
+.sv-plate .sv-sn .sn-key{width:62px}
+.sv-sn .sn-ga{padding-left:4px;padding-right:4px}
+.sn-crow .sn-row{gap:3px;align-items:flex-end}
+.sn-crow .sv-ncap{margin-top:2px;font-size:8.5px;white-space:nowrap}
+.sn-crow .sv-rocks{margin-bottom:24px}
+.sn-crow .sv-ncap,.sv-sn .sn-ltcol .sv-ncap{text-align:center;line-height:1.2}
+.sv-plate .sv-title{margin-bottom:8px}
+.sv-plate .sv-keys{margin-bottom:10px;padding:7px 8px 5px}
+.sv-plate .sv-key{height:48px}
+.sv-plate .sv-cap{margin-top:3px}
+.sv-plate .sv-row{margin-bottom:10px}
+.sv-plate .sv-group{padding-top:15px;padding-bottom:7px}
+.sv-plate .sv-dial{padding-top:7px;padding-bottom:5px}
+.sv-plate .sv-sn{padding:17px 10px 8px}
+.sv-plate .sv-vcol{min-height:172px}
+.sv-sn .sn-kpp{flex-basis:118px;height:118px}
+.sv-sn .sn-kpp svg{width:118px;height:118px}
+.sv-sn .sn-lamps{width:160px}
+.sv-sn .sn-lamps .sv-ann{width:77px}
+.sv-sn .sn-tube{width:22px}
+.sn-grp{position:relative;display:flex;align-items:center;justify-content:center;padding:18px 12px 10px;border:1px solid rgba(214,210,190,.45);border-radius:2px}
+.sn-gl{position:absolute;top:-7px;left:8px;padding:0 5px;background:#111314;font-size:9.5px;white-space:nowrap;color:#d9d5c2}
+.sn-gl .sv-g{margin-right:1.3px}
+.sn-axis{width:116px;padding-right:24px;display:flex;justify-content:center}
+.sn-axis .sn-lamp{margin:0}
+.sn-axis .sv-ncap{margin:2px 0 0}
+.sn-guard{flex:0 0 116px}
+.sn-ltbtn{position:relative;width:34px;height:34px;border-radius:50%;cursor:pointer;
+ background:#1c1d1f;box-shadow:0 0 0 3px #4a4d50,0 0 0 4px #0a0a0a,0 2px 4px rgba(0,0,0,.8)}
+.sn-ltcap{position:absolute;left:6px;top:6px;width:22px;height:22px;border-radius:50%;
+ background:linear-gradient(135deg,#4a4d50,#1c1d1f 55%,#0d0e0f);box-shadow:inset 0 -2px 3px rgba(0,0,0,.7),0 1px 2px rgba(0,0,0,.9)}
+.sn-ltbtn[activated="true"] .sn-ltcap{left:7px;top:7px;width:20px;height:20px;box-shadow:inset 0 2px 3px rgba(0,0,0,.8)}
+.sn-app{width:72px;height:30px;font-size:10px}
+.sn-app[activated="true"]{color:#2a1a00;background:radial-gradient(ellipse at 50% 45%,#ffe08a 0%,#f0a81e 58%,#a86a06 100%);box-shadow:0 0 10px 2px rgba(255,170,40,.5),inset 0 1px 0 rgba(255,255,255,.4)}
 .sv-debug{display:none;width:100%;height:90px;margin-top:8px;background:#000;color:#9f9;border:1px solid #333;font:11px/1.2 monospace;resize:none}
 `;
 
@@ -516,9 +678,9 @@ function apSkinHTML(vem) {
             '" stroke="#d8d4bf" stroke-width="' + (major ? 2 : 1) + '"/>';
     }
     const dial = '<svg class="sv-dsvg" viewBox="0 0 100 100"><defs>' +
-        '<linearGradient id="svBz" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#d4d6d3"/><stop offset=".45" stop-color="#7c7f7e"/><stop offset="1" stop-color="#26282a"/></linearGradient>' +
-        '<radialGradient id="svFace" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#1b1c1d"/><stop offset="1" stop-color="#040404"/></radialGradient>' +
-        '<linearGradient id="svGl" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".30"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient></defs>' +
+        '<linearGradient id="svBz" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c4c6c4"/><stop offset=".45" stop-color="#7a7d7f"/><stop offset="1" stop-color="#2a2c2e"/></linearGradient>' +
+        '<radialGradient id="svFace" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#121313"/><stop offset=".85" stop-color="#0e0f0f"/><stop offset="1" stop-color="#030303"/></radialGradient>' +
+        '<linearGradient id="svGl" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".22"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient></defs>' +
         '<circle cx="50" cy="50" r="49" fill="url(#svBz)"/><circle cx="50" cy="50" r="45.5" fill="#050505"/><circle cx="50" cy="50" r="44.5" fill="url(#svFace)"/>' + ticks +
         '<path d="M50 30 L54 46 L66 54 L66 58 L53 54 L53 66 L58 70 L58 73 L50 71 L42 73 L42 70 L47 66 L47 54 L34 58 L34 54 L46 46Z" fill="#d8d4bf"/>' +
         '<g data-k="needle"><path d="M50 4 L43.5 19 L56.5 19Z" fill="#e39a1a" stroke="#4a2d00" stroke-width=".6"/>' +
@@ -541,7 +703,8 @@ function apSkinHTML(vem) {
         key("sv-cyan", "at", L.at, "", "A/T") +
         '</div>' +
         '<div class="sv-row"><div class="sv-group sv-dial">' + dial + '</div>' +
-        group("", L.hdgGroup, "hdgCounter", "hdginc", "hdgdec") +
+        '<div class="sv-group sv-hdgbank"><span class="sv-glabel" data-k="hdgCounterCap">' + apRu(L.hdgGroup) + '</span><div class="sv-ctr" data-k="hdgCounter"></div>' + rocks("hdginc", "hdgdec") +
+        '<div class="sv-hbk">' + apBankSelHTML(84, 46, 8) + '<div class="sv-ncap">' + apRu(L.bankCap) + '</div></div></div>' +
         group("", L.altGroup, "altCounter", "altinc", "altdec") +
         group("", L.vsGroup, "vsCounter", "vsinc", "vsdec") + '</div>' +
         '<div class="sv-row sv-navrow"><div class="sv-group sv-nav"><span class="sv-glabel">' + apRu(L.navGroup) + '</span>' +
@@ -550,11 +713,12 @@ function apSkinHTML(vem) {
         '<div class="sv-navcol"><div class="sv-ctr" data-k="crsCounter"></div><div class="sv-ncap">' + apRu(L.crs) + '</div></div>' +
         '<div class="sv-navcol"><div class="sv-ctr" data-k="xtkCounter"></div><div class="sv-ncap">' + apRu(L.xtk) + '</div></div>' +
         '<div class="sv-btn" data-k="loadroute">' + apRu(L.load) + '</div></div></div>' + apRadioRowHTML(rocks) +
-        (vem ? '<div class="sv-bottom sv-vembot">' + apVemBox(196) + '<div class="sv-vcol"><div class="sv-status" data-k="status"></div>' +
-            '<div class="sv-bankrow"><div class="sv-bankcap">' + apRu(L.bankCap) + '</div>' + apBankSelHTML(150, 54, 10) + '</div><div class="sv-vbtns">' +
+        '<div class="sv-row sv-snrow"><div class="sv-group sv-sn"><span class="sv-glabel">' + apRu(L.snTitle) + '</span>' + apSnHTML(true) + '</div></div>' +
+        (vem ? '<div class="sv-bottom sv-vembot">' + apVemBox(172) + '<div class="sv-vcol"><div class="sv-status" data-k="status"></div>' +
+            '<div class="sv-vbtns">' +
             '<div class="sv-mini" data-k="controls"></div><div class="sv-mini" data-k="ydbtn">' + apRu(AP_LABELS.yd) + '</div></div><div class="sv-vbtns"><div class="sv-mini sv-unitbtn" data-k="unitbtn"></div><div class="sv-mini sv-skinbtn" data-k="vembtn">' + apRu(AP_LABELS.vem) +
             '</div><div class="sv-mini sv-skinbtn" data-k="skinbtn">' + apRu("ВИД") + '</div></div></div></div>'
-        : '<div class="sv-bottom"><div class="sv-status" data-k="status"></div><div class="sv-bankrow"><div class="sv-bankcap">' + apRu(L.bankCap) + '</div>' + apBankSelHTML(120, 44, 9) + '</div><div class="sv-mini" data-k="controls" style="flex-basis:132px"></div><div class="sv-mini" data-k="ydbtn" style="flex-basis:64px">' + apRu(AP_LABELS.yd) + '</div><div class="sv-mini sv-unitbtn" data-k="unitbtn"></div><div class="sv-mini sv-skinbtn" data-k="vembtn">' + apRu(AP_LABELS.vem) + '</div><div class="sv-mini sv-skinbtn" data-k="skinbtn">' + apRu("ВИД") + '</div></div>') +
+        : '<div class="sv-bottom"><div class="sv-status" data-k="status"></div><div class="sv-mini" data-k="controls" style="flex-basis:132px"></div><div class="sv-mini" data-k="ydbtn" style="flex-basis:64px">' + apRu(AP_LABELS.yd) + '</div><div class="sv-mini sv-unitbtn" data-k="unitbtn"></div><div class="sv-mini sv-skinbtn" data-k="vembtn">' + apRu(AP_LABELS.vem) + '</div><div class="sv-mini sv-skinbtn" data-k="skinbtn">' + apRu("ВИД") + '</div></div>') +
         '<textarea class="sv-debug" data-k="debug" readonly></textarea>' +
         '</div></div></div>';
 }
@@ -585,6 +749,10 @@ const AP_AN_CSS = `
  border-top-color:#3a3d41;border-left-color:#303236;border-bottom-color:#18191b;border-right-color:#1e2022}
 .an-bank::before{background-image:url(${AP_TEX_AN.low})}
 .an-bank .sv-banksel{position:absolute;left:83px;top:30px}
+.an-snb{position:relative;margin-top:18px;width:${AP_AN_WIDTH + 30}px;height:290px;box-sizing:border-box;border-radius:5px;border:7px solid #26282b;
+ border-top-color:#3a3d41;border-left-color:#303236;border-bottom-color:#18191b;border-right-color:#1e2022}
+.an-snb::before{background-image:url(${AP_TEX_AN.low})}
+.an-snb .sn-box{position:absolute;left:22px;top:38px;right:22px;align-items:stretch}
 .an-low{position:absolute;left:0;top:236px;width:480px;height:316px;border-radius:5px;border:7px solid #26282b;
  border-top-color:#3a3d41;border-left-color:#303236;border-bottom-color:#18191b;border-right-color:#1e2022}
 .an-t{position:absolute;color:#e6e3d6;line-height:1;white-space:nowrap;opacity:.9}
@@ -673,9 +841,9 @@ function apDialSvg() {
             '" stroke="#d8d4bf" stroke-width="' + (major ? 2 : 1) + '"/>';
     }
     return '<svg class="sv-dsvg" viewBox="0 0 100 100"><defs>' +
-        '<linearGradient id="svBz" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#d4d6d3"/><stop offset=".45" stop-color="#7c7f7e"/><stop offset="1" stop-color="#26282a"/></linearGradient>' +
-        '<radialGradient id="svFace" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#1b1c1d"/><stop offset="1" stop-color="#040404"/></radialGradient>' +
-        '<linearGradient id="svGl" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".30"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient></defs>' +
+        '<linearGradient id="svBz" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c4c6c4"/><stop offset=".45" stop-color="#7a7d7f"/><stop offset="1" stop-color="#2a2c2e"/></linearGradient>' +
+        '<radialGradient id="svFace" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#121313"/><stop offset=".85" stop-color="#0e0f0f"/><stop offset="1" stop-color="#030303"/></radialGradient>' +
+        '<linearGradient id="svGl" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".22"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient></defs>' +
         '<circle cx="50" cy="50" r="49" fill="url(#svBz)"/><circle cx="50" cy="50" r="45.5" fill="#050505"/><circle cx="50" cy="50" r="44.5" fill="url(#svFace)"/>' + ticks +
         '<path d="M50 30 L54 46 L66 54 L66 58 L53 54 L53 66 L58 70 L58 73 L50 71 L42 73 L42 70 L47 66 L47 54 L34 58 L34 54 L46 46Z" fill="#d8d4bf"/>' +
         '<g data-k="needle"><path d="M50 4 L43.5 19 L56.5 19Z" fill="#e39a1a" stroke="#4a2d00" stroke-width=".6"/>' +
@@ -726,7 +894,7 @@ function apToggleSvg(id) {
         '<radialGradient id="' + u + 't" cx=".36" cy=".3" r=".75"><stop offset="0" stop-color="#ffffff"/><stop offset=".22" stop-color="#e9ebe8"/>' +
         '<stop offset=".58" stop-color="#959897"/><stop offset="1" stop-color="#3a3d3f"/></radialGradient>' +
         '<linearGradient id="' + u + 'n" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c4c6c4"/><stop offset=".45" stop-color="#7a7d7f"/><stop offset="1" stop-color="#2a2c2e"/></linearGradient>' +
-        '<radialGradient id="' + u + 'w" cx=".4" cy=".35" r=".7"><stop offset="0" stop-color="#8e9193"/><stop offset=".7" stop-color="#56595b"/><stop offset="1" stop-color="#25272a"/></radialGradient>' +
+        '<radialGradient id="' + u + 'w" cx=".4" cy=".35" r=".7"><stop offset="0" stop-color="#c4c6c4"/><stop offset=".45" stop-color="#7a7d7f"/><stop offset="1" stop-color="#2a2c2e"/></radialGradient>' +
         '<radialGradient id="' + u + 's" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#000" stop-opacity=".6"/><stop offset="1" stop-color="#000" stop-opacity="0"/></radialGradient>' +
         '</defs>' +
         '<ellipse cx="' + (cx + 2.5) + '" cy="' + (cy + 3.5) + '" rx="15" ry="14" fill="url(#' + u + 's)"/>' +
@@ -751,7 +919,9 @@ function apBankSelHTML(W, H, fs) {
     let ticks = "", digits = "";
     for (let i = 0; i < n; i++) {
         const a = ang(i) * Math.PI / 180;
-        ticks += '<line x1="' + f(cx + r1 * Math.sin(a)) + '" y1="' + f(cy - r1 * Math.cos(a)) + '" x2="' + f(cx + r2 * Math.sin(a)) + '" y2="' + f(cy - r2 * Math.cos(a)) +
+        ticks += '<line x1="' + f(cx + r1 * Math.sin(a) + .6) + '" y1="' + f(cy - r1 * Math.cos(a) + .8) + '" x2="' + f(cx + r2 * Math.sin(a) + .6) + '" y2="' + f(cy - r2 * Math.cos(a) + .8) +
+            '" stroke="#000" stroke-opacity=".55" stroke-width="' + f(Math.max(1.2, H * 0.03)) + '" stroke-linecap="round"/>' +
+            '<line x1="' + f(cx + r1 * Math.sin(a)) + '" y1="' + f(cy - r1 * Math.cos(a)) + '" x2="' + f(cx + r2 * Math.sin(a)) + '" y2="' + f(cy - r2 * Math.cos(a)) +
             '" stroke="#e6e3d6" stroke-width="' + f(Math.max(1.2, H * 0.03)) + '" stroke-linecap="round"/>';
         if (i < n - 1) {
             const b = (ang(i) + ang(i + 1)) / 2 * Math.PI / 180, r3 = r1 + (r2 - r1) * 0.45;
@@ -762,19 +932,56 @@ function apBankSelHTML(W, H, fs) {
             'px;width:' + f(fs * 2.8) + 'px;font-size:' + fs + 'px">' + apRu(String(vals[i])) + '</div>';
     }
     const u = "bs" + Math.round(W);
-    const knob = '<defs><radialGradient id="' + u + 'k" cx=".38" cy=".32" r=".75"><stop offset="0" stop-color="#4a4d50"/><stop offset=".55" stop-color="#1c1d1f"/><stop offset="1" stop-color="#050505"/></radialGradient>' +
-        '<linearGradient id="' + u + 'b" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3c3f42"/><stop offset="1" stop-color="#0b0c0d"/></linearGradient></defs>' +
-        '<circle cx="' + f(cx + 1.5) + '" cy="' + f(cy + 2.5) + '" r="' + f(rk * 1.18) + '" fill="#000" fill-opacity=".45"/>' +
-        '<circle cx="' + f(cx) + '" cy="' + f(cy) + '" r="' + f(rk * 1.12) + '" fill="url(#' + u + 'b)" stroke="#000" stroke-width="1"/>' +
-        // wskaznik: podluzna "dziobowa" galka bakelitowa z biala kreska
-        '<g data-k="bankSelPtr" transform="rotate(0 ' + f(cx) + ' ' + f(cy) + ')">' +
-        '<path d="M' + f(cx - rk * 0.42) + ' ' + f(cy + rk * 0.85) + ' L' + f(cx - rk * 0.3) + ' ' + f(cy - rk * 1.25) + ' Q' + f(cx) + ' ' + f(cy - rk * 1.55) + ' ' + f(cx + rk * 0.3) + ' ' + f(cy - rk * 1.25) +
-        ' L' + f(cx + rk * 0.42) + ' ' + f(cy + rk * 0.85) + ' Q' + f(cx) + ' ' + f(cy + rk * 1.1) + ' ' + f(cx - rk * 0.42) + ' ' + f(cy + rk * 0.85) + 'Z" fill="url(#' + u + 'k)" stroke="#000" stroke-width="1"/>' +
-        '<line x1="' + f(cx) + '" y1="' + f(cy - rk * 0.25) + '" x2="' + f(cx) + '" y2="' + f(cy - rk * 1.3) + '" stroke="#ecebe2" stroke-width="' + f(Math.max(1.4, H * 0.035)) + '" stroke-linecap="round"/>' +
-        '<ellipse cx="' + f(cx - rk * 0.12) + '" cy="' + f(cy - rk * 0.6) + '" rx="' + f(rk * 0.12) + '" ry="' + f(rk * 0.45) + '" fill="#fff" fill-opacity=".12"/></g>' +
-        '<circle cx="' + f(cx) + '" cy="' + f(cy) + '" r="' + f(rk * 0.16) + '" fill="#0a0a0a" stroke="#3a3c3e" stroke-width=".8"/>';
+    const P = (x, y) => f(cx + x * rk) + ' ' + f(cy + y * rk);          // punkt w jednostkach promienia galki
+    const rot = (inner, dx, dy) => '<g' + (dx ? ' transform="translate(' + f(dx) + ' ' + f(dy) + ')"' : '') + '><g data-bkr="1" transform="rotate(0 ' + f(cx) + ' ' + f(cy) + ')">' + inner + '</g></g>';
+    // obrys galki "dziob": okragla piasta przechodzaca w zwezajacy sie dziob z zaokraglonym czubkiem
+    const beak = (k) => {
+        const hr = 0.74 * k, d = 1.58 * k, al = Math.acos(hr / d), tw = 0.1 * k;
+        const lx = -hr * Math.sin(al), ly = -hr * Math.cos(al);
+        let p = 'M' + P(lx, ly) + ' L' + P(-tw, -d + tw * 1.4) + ' Q' + P(0, -d - tw * 0.6) + ' ' + P(tw, -d + tw * 1.4) + ' L' + P(-lx, ly);
+        for (let i = 1; i <= 28; i++) { const a = -Math.PI / 2 + al + (Math.PI * 2 - 2 * al) * i / 28; p += ' L' + P(hr * Math.cos(a), hr * Math.sin(a)); }
+        return p + 'Z';
+    };
+    // radelkowany kolnierz: zabki cieniowane od swiatla z lewej-gory (nie obracaja sie razem z galka - wyglada tak samo)
+    let knurl = '';
+    for (let i = 0; i < 40; i++) {
+        const a = i / 40 * Math.PI * 2, lit = 0.5 + 0.5 * Math.cos(a - Math.PI * 1.25);
+        const g = Math.round(22 + lit * 95);
+        knurl += '<line x1="' + P(Math.cos(a) * 0.93, Math.sin(a) * 0.93) + '" x2="' + P(Math.cos(a) * 1.07, Math.sin(a) * 1.07) + '" stroke="rgb(' + g + ',' + g + ',' + (g + 3) + ')" stroke-width="' + f(Math.max(1, rk * 0.07)) + '"/>';
+    }
+    // glint: jasny refleks na brzegu piasty od strony swiatla (staly, bo piasta jest okragla)
+    let glint = 'M' + P(Math.cos(Math.PI * 1.02) * 0.68, Math.sin(Math.PI * 1.02) * 0.68);
+    for (let i = 1; i <= 10; i++) { const a = Math.PI * (1.02 + 0.42 * i / 10); glint += ' L' + P(Math.cos(a) * 0.68, Math.sin(a) * 0.68); }
+    const knob = '<defs>' +
+        '<linearGradient id="' + u + 'r" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#000" stop-opacity=".75"/><stop offset=".55" stop-color="#000" stop-opacity=".35"/><stop offset="1" stop-color="#8a8a80" stop-opacity=".35"/></linearGradient>' +
+        '<radialGradient id="' + u + 's" cx=".36" cy=".3" r=".8"><stop offset="0" stop-color="#3a3c3d"/><stop offset=".5" stop-color="#232425"/><stop offset="1" stop-color="#0b0c0d"/></radialGradient>' +
+        '<linearGradient id="' + u + 'k" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#0a0a0b"/><stop offset=".22" stop-color="#34373b"/><stop offset=".4" stop-color="#686c71"/><stop offset=".55" stop-color="#2a2c2f"/><stop offset="1" stop-color="#060606"/></linearGradient>' +
+        '<linearGradient id="' + u + 't" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#3a3c3d"/><stop offset=".5" stop-color="#232425"/><stop offset="1" stop-color="#0b0c0d"/></linearGradient>' +
+        '<radialGradient id="' + u + 'c" cx=".35" cy=".3" r=".8"><stop offset="0" stop-color="#c4c6c4"/><stop offset=".45" stop-color="#7a7d7f"/><stop offset="1" stop-color="#2a2c2e"/></radialGradient></defs>' +
+        // wyfrezowane gniazdo w plycie: gorna krawedz w cieniu, dolna zlapala swiatlo
+        '<circle cx="' + f(cx) + '" cy="' + f(cy) + '" r="' + f(rk * 1.22) + '" fill="url(#' + u + 'r)"/>' +
+        '<circle cx="' + f(cx) + '" cy="' + f(cy) + '" r="' + f(rk * 1.14) + '" fill="#0c0c0d"/>' +
+        // cien galki na dnie gniazda
+        '<circle cx="' + f(cx + rk * 0.1) + '" cy="' + f(cy + rk * 0.16) + '" r="' + f(rk * 1.09) + '" fill="#000" fill-opacity=".6"/>' +
+        // kolnierz z radelkowaniem
+        '<circle cx="' + f(cx) + '" cy="' + f(cy) + '" r="' + f(rk * 1.07) + '" fill="#1c1d1f" stroke="#000" stroke-width=".8"/>' + knurl +
+        '<circle cx="' + f(cx) + '" cy="' + f(cy) + '" r="' + f(rk * 0.93) + '" fill="url(#' + u + 's)" stroke="#000" stroke-opacity=".8" stroke-width=".8"/>' +
+        // cien dzioba (miekki + twardy), obraca sie z galka, ale przesuniety zawsze w prawo-dol
+        rot('<path d="' + beak(1.06) + '" fill="#000" fill-opacity=".28"/>', rk * 0.2, rk * 0.3) +
+        rot('<path d="' + beak(1) + '" fill="#000" fill-opacity=".55"/>', rk * 0.09, rk * 0.14) +
+        // bakelitowy dziob: zaokraglony grzbiet + plaska gorna sciana + grawerowana biala kreska
+        rot('<g data-k="bankSelPtr"><path d="' + beak(1) + '" fill="url(#' + u + 'k)" stroke="#000" stroke-width="1.2"/><path d="' + beak(0.95) + '" fill="none" stroke="#8a8e93" stroke-opacity=".35" stroke-width="' + f(Math.max(.7, rk * 0.04)) + '"/>' +
+            '<path d="' + beak(0.8) + '" fill="url(#' + u + 't)" fill-opacity=".75" transform="translate(0 ' + f(-rk * 0.08) + ')"/>' +
+            '<line x1="' + P(0.05, -0.2) + '" x2="' + P(0.05, -1.32) + '" stroke="#000" stroke-opacity=".7" stroke-width="' + f(Math.max(1.4, rk * 0.12)) + '" stroke-linecap="round"/>' +
+            '<line x1="' + P(0, -0.24) + '" x2="' + P(0, -1.34) + '" stroke="#efeee4" stroke-width="' + f(Math.max(1.2, rk * 0.09)) + '" stroke-linecap="round"/></g>') +
+        // staly refleks swiatla na piascie
+        '<path d="' + glint + '" fill="none" stroke="#fff" stroke-opacity=".22" stroke-width="' + f(Math.max(1, rk * 0.07)) + '" stroke-linecap="round"/>' +
+        '<ellipse cx="' + f(cx - rk * 0.26) + '" cy="' + f(cy - rk * 0.3) + '" rx="' + f(rk * 0.2) + '" ry="' + f(rk * 0.11) + '" fill="#fff" fill-opacity=".09" transform="rotate(-40 ' + f(cx - rk * 0.26) + ' ' + f(cy - rk * 0.3) + ')"/>' +
+        // srubka mocujaca z nacieciem
+        '<circle cx="' + f(cx) + '" cy="' + f(cy) + '" r="' + f(rk * 0.17) + '" fill="url(#' + u + 'c)" stroke="#000" stroke-width=".7"/>' +
+        rot('<line x1="' + P(0, -0.15) + '" x2="' + P(0, 0.15) + '" stroke="#0a0a0a" stroke-width="' + f(Math.max(.8, rk * 0.05)) + '"/>');
     return '<div class="sv-banksel" data-k="bankSel" style="width:' + W + 'px;height:' + H + 'px">' +
-        '<svg class="sv-bssvg" viewBox="0 0 ' + W + ' ' + H + '" width="' + W + '" height="' + H + '">' + ticks + knob + '</svg>' + digits + '</div>';
+        '<svg class="sv-bssvg" viewBox="0 0 ' + W + ' ' + H + '" width="' + W + '" height="' + H + '">' + ticks + knob.replace(/x1="([-0-9.]+) ([-0-9.]+)" x2="([-0-9.]+) ([-0-9.]+)"/g, 'x1="$1" y1="$2" x2="$3" y2="$4"') + '</svg>' + digits + '</div>';
 }
 
 // Wiersz nawigacji radiowej (oba wyglady): zrodlo NVU, czestotliwosc, OBS, KUR / radial
@@ -796,6 +1003,159 @@ function apAnnHTML() {
     const L = AP_LABELS;
     return '<div class="sv-anns"><div class="sv-ann sv-grn" data-k="annYd">' + apRu(L.lampYd) + '</div><div class="sv-ann" data-k="annDanger">' + apRu(L.lampDanger) + '</div><div class="sv-ann sv-amb" data-k="annAlt">' + apRu(L.lampAlt) +
         '</div><div class="sv-ann" data-k="annRoll">' + apRu(L.lampRoll) + '</div><div class="sv-ann" data-k="annPitch">' + apRu(L.lampPitch) + '</div></div>';
+}
+
+
+// ---------------------------------------------------------------------
+//  СНПС «Курс-С»: przycisk pod klapka, КПП (kursowa i sciezkowa belka), lampki, odczyty, ЗАХОД
+// ---------------------------------------------------------------------
+// biale ukosne paski w prostokacie (zamiast <pattern>, ktorego gra nie rysuje)
+function apStripes(x, y, w, h, step, col) {
+    let s = "";
+    const clip = (poly) => {                              // przyciecie wielokata do prostokata (Sutherland-Hodgman)
+        const edges = [[(p) => p[0] >= x, (a, b) => [x, a[1] + (b[1] - a[1]) * (x - a[0]) / (b[0] - a[0])]],
+            [(p) => p[0] <= x + w, (a, b) => [x + w, a[1] + (b[1] - a[1]) * (x + w - a[0]) / (b[0] - a[0])]],
+            [(p) => p[1] >= y, (a, b) => [a[0] + (b[0] - a[0]) * (y - a[1]) / (b[1] - a[1]), y]],
+            [(p) => p[1] <= y + h, (a, b) => [a[0] + (b[0] - a[0]) * (y + h - a[1]) / (b[1] - a[1]), y + h]]];
+        edges.forEach(([inside, cut]) => {
+            const out = [];
+            for (let i = 0; i < poly.length; i++) {
+                const a = poly[i], b = poly[(i + 1) % poly.length];
+                if (inside(b)) { if (!inside(a)) out.push(cut(a, b)); out.push(b); } else if (inside(a)) out.push(cut(a, b));
+            }
+            poly = out;
+        });
+        return poly;
+    };
+    for (let k = -h; k < w; k += step) {
+        const p = clip([[x + k, y + h], [x + k + step / 2, y + h], [x + k + step / 2 + h, y], [x + k + h, y]]);
+        if (p.length > 2) s += '<path d="M' + p.map((q) => q[0].toFixed(2) + " " + q[1].toFixed(2)).join(" L") + 'Z" fill="' + col + '"/>';
+    }
+    return s;
+}
+
+function apSnHTML(compact) {
+    const L = AP_LABELS;
+    const triV = (up) => '<svg viewBox="0 0 10 10"><path d="' + (up ? "M1 8 L5 2 L9 8Z" : "M1 2 L5 8 L9 2Z") + '"/></svg>';
+    // przelacznik dzwigniowy (bistabilny) pod czerwona klapka z okienkiem, jak na pulpicie inzyniera Tu-154 (116 x 130)
+    const lever = (k, up) => {
+        const y2 = up ? 36 : 96, dir = up ? -1 : 1;
+        return '<g data-k="' + k + '"' + (up ? ' style="display:none"' : '') + '>' +
+            '<path d="M41.5 66 L43.8 ' + y2 + ' L48.2 ' + y2 + ' L50.5 66Z" fill="#000" opacity=".45" transform="translate(3 3)"/>' +
+            '<path d="M41.5 66 L43.8 ' + y2 + ' L48.2 ' + y2 + ' L50.5 66Z" fill="url(#snLv)" stroke="#1a1a1a" stroke-width=".6"/>' +
+            '<circle cx="46" cy="' + (y2 + dir * 1) + '" r="4.6" fill="url(#snBall)" stroke="#1a1a1a" stroke-width=".6"/></g>';
+    };
+    // klapka: plaska blacha w ksztalcie U z wycieciem u gory i owalnym okienkiem nad dzwignia (evenodd = dziura)
+    const plate = 'M18 24 L32 24 Q46 36 60 24 L74 24 L76 104 Q76 112 68 112 L24 112 Q16 112 16 104 Z ' +
+        'M46 49 Q53.5 49 53.5 58 L53.5 74 Q53.5 83 46 83 Q38.5 83 38.5 74 L38.5 58 Q38.5 49 46 49 Z';
+    const guard = '<svg class="sn-gsvg" viewBox="0 0 116 130" width="116" height="130"><defs>' +
+        '<linearGradient id="snLv" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#2b2e30"/><stop offset=".16" stop-color="#7f8284"/><stop offset=".33" stop-color="#eef0ed"/><stop offset=".44" stop-color="#ffffff"/><stop offset=".58" stop-color="#b6b8b7"/><stop offset=".8" stop-color="#5d6062"/><stop offset=".92" stop-color="#8a8d8e"/><stop offset="1" stop-color="#2a2c2e"/></linearGradient>' +
+        '<radialGradient id="snBall" cx=".35" cy=".3" r=".75"><stop offset="0" stop-color="#ffffff"/><stop offset=".22" stop-color="#e9ebe8"/><stop offset=".58" stop-color="#959897"/><stop offset="1" stop-color="#3a3d3f"/></radialGradient>' +
+        '<radialGradient id="snNut" cx=".4" cy=".35" r=".7"><stop offset="0" stop-color="#c4c6c4"/><stop offset=".45" stop-color="#7a7d7f"/><stop offset="1" stop-color="#2a2c2e"/></radialGradient>' +
+        '<linearGradient id="snCv" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#a83322"/><stop offset=".12" stop-color="#e2654a"/><stop offset=".5" stop-color="#ef7458"/><stop offset=".88" stop-color="#d85a40"/><stop offset="1" stop-color="#8c2618"/></linearGradient>' +
+        '<linearGradient id="snCvU" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6e1a10"/><stop offset="1" stop-color="#a8392a"/></linearGradient>' +
+        '<linearGradient id="snHg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#c4c6c4"/><stop offset=".45" stop-color="#7a7d7f"/><stop offset="1" stop-color="#2a2c2e"/></linearGradient></defs>' +
+        // napisy polozen (na plycie, obok klapki)
+        apSvgText(AP_LABELS.snPwr, 82, 42, 8.5, "#e6e3d6", "start", .5) + apSvgText(AP_LABELS.snOffPos, 82, 98, 8.5, "#e6e3d6", "start", .5) +
+        // nakretka przelacznika
+        '<circle cx="46" cy="66" r="12.5" fill="#0d0e0f"/><circle cx="46" cy="66" r="11" fill="url(#snNut)" stroke="#111"/>' +
+        '<path d="M46 58.5 L52.5 62.2 L52.5 69.8 L46 73.5 L39.5 69.8 L39.5 62.2Z" fill="url(#snNut)" stroke="#1b1b1b" stroke-width=".7"/>' +
+        '<circle cx="46" cy="66" r="3.4" fill="#151515"/>' +
+        lever("snLevUp", true) + lever("snLevDn", false) +
+        // klapka zamknieta: cien, blacha z okienkiem, krawedzie (boki ceownika), slad przetarcia
+        '<g data-k="snCovC"><path d="' + plate + '" fill="#000" opacity=".45" fill-rule="evenodd" transform="translate(3 4)"/>' +
+        '<path d="' + plate + '" fill="url(#snCv)" stroke="#5a1408" stroke-width="1" fill-rule="evenodd"/>' +
+        '<path d="M46 49 Q53.5 49 53.5 58 L53.5 74 Q53.5 83 46 83 Q38.5 83 38.5 74 L38.5 58 Q38.5 49 46 49 Z" fill="none" stroke="#3a0b05" stroke-width="2"/>' +
+        '<path d="M46 50.5 Q52 50.5 52 58" fill="none" stroke="#000" stroke-opacity=".5" stroke-width="2"/>' +
+        '<path d="M20 30 L21.5 104 Q22 108 26 108.5" fill="none" stroke="#fff" stroke-opacity=".28" stroke-width="1.4"/>' +
+        '<path d="M29 98 Q46 101 63 98" fill="none" stroke="#fff" stroke-opacity=".12" stroke-width="3"/></g>' +
+        // klapka podniesiona: widac spod blachy nad zawiasem
+        '<g data-k="snCovO" style="display:none"><path d="M18 24 L74 24 L77 4 Q46 0 15 4 Z" fill="url(#snCvU)" stroke="#5a1408"/>' +
+        '<path d="M22 22 L70 22 L72 7 Q46 4 20 7 Z" fill="#000" opacity=".2"/></g>' +
+        // zawias
+        '<rect x="14" y="19" width="64" height="8" rx="3" fill="url(#snHg)" stroke="#000"/>' +
+        '<circle cx="20" cy="23" r="2" fill="#2a2b2d"/><circle cx="72" cy="23" r="2" fill="#2a2b2d"/>' +
+        '<rect x="35" y="19" width="1.2" height="8" fill="#000" opacity=".5"/><rect x="56" y="19" width="1.2" height="8" fill="#000" opacity=".5"/></svg>';
+    // КПП: kombinowany przyrzad - belka kursu (pionowa) i sciezki (pozioma), choragiewki К / Г
+    let dots = "";
+    for (let i = -2; i <= 2; i++) if (i) dots += '<circle cx="' + (70 + i * 15) + '" cy="70" r="2.8" fill="none" stroke="#e8e5d8" stroke-width="1.3"/>' +
+        '<circle cx="70" cy="' + (70 + i * 15) + '" r="2.8" fill="none" stroke="#e8e5d8" stroke-width="1.3"/>';
+    const flag = (k, x, y, ch) => '<g data-k="' + k + '"><rect x="' + x + '" y="' + y + '" width="22" height="13" fill="#c8261c"/>' + apStripes(x, y, 22, 13, 7, "#f0eee6") +
+        '<rect x="' + x + '" y="' + y + '" width="22" height="13" fill="none" stroke="#000" stroke-width=".8"/>' +
+        '<rect x="' + (x + 6.5) + '" y="' + (y + 1.5) + '" width="9" height="10" fill="#1a1a1a"/>' + apSvgText(ch, x + 11, y + 10, 8, "#f2f0e6", "middle") + '</g>';
+    const scr = (x, y, a) => '<circle cx="' + x + '" cy="' + y + '" r="5.2" fill="url(#snScr)" stroke="#0c0c0c" stroke-width=".8"/>' +
+        '<line x1="' + (x - 3.6) + '" y1="' + y + '" x2="' + (x + 3.6) + '" y2="' + y + '" stroke="#1a1a1a" stroke-width="1.4" transform="rotate(' + a + ' ' + x + ' ' + y + ')"/>';
+    const kpp = '<svg class="sn-ksvg" viewBox="0 0 140 140" width="140" height="140"><defs>' +
+        '<linearGradient id="snFlg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3a3c3d"/><stop offset=".5" stop-color="#232425"/><stop offset="1" stop-color="#0b0c0d"/></linearGradient>' +
+        '<radialGradient id="snScr" cx=".38" cy=".32" r=".7"><stop offset="0" stop-color="#c4c6c4"/><stop offset=".45" stop-color="#7a7d7f"/><stop offset="1" stop-color="#2a2c2e"/></radialGradient>' +
+        '<linearGradient id="snBz" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3a3c3d"/><stop offset=".5" stop-color="#232425"/><stop offset="1" stop-color="#0b0c0d"/></linearGradient>' +
+        '<radialGradient id="snFace" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#121313"/><stop offset=".85" stop-color="#0e0f0f"/><stop offset="1" stop-color="#030303"/></radialGradient>' +
+        '<linearGradient id="snGl" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".22"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>' +
+        '</defs>' +
+        // kwadratowy kolnierz przyrzadu przykrecony do plyty
+        '<rect x="1" y="1" width="138" height="138" rx="9" fill="#000" opacity=".5" transform="translate(1.5 2)"/>' +
+        '<rect x="1" y="1" width="138" height="138" rx="9" fill="url(#snFlg)" stroke="#050505"/>' +
+        '<rect x="2" y="2" width="136" height="2" rx="1" fill="#fff" opacity=".07"/>' +
+        scr(12, 12, 30) + scr(128, 12, -55) + scr(12, 128, 75) + scr(128, 128, 10) +
+        // okragla oprawa i tarcza
+        '<circle cx="70" cy="70" r="61" fill="url(#snBz)" stroke="#000"/><circle cx="70" cy="70" r="56.5" fill="#030303"/><circle cx="70" cy="70" r="55" fill="url(#snFace)"/>' +
+        dots + apSvgText(AP_LABELS.snKpp, 70, 113, 7.5, "#8f8c80", "middle", 1) +
+        flag("snFlagL", 80, 34, "К") + flag("snFlagG", 36, 92, "Г") +
+        '<g data-k="snBarL"><rect x="68.4" y="22" width="3.2" height="96" rx="1.3" fill="#f2f0e6" stroke="#000" stroke-width=".5"/></g>' +
+        '<g data-k="snBarG"><rect x="22" y="68.4" width="96" height="3.2" rx="1.3" fill="#f2f0e6" stroke="#000" stroke-width=".5"/></g>' +
+        '<path d="M54 70 L65 70 L70 75 L75 70 L86 70" fill="none" stroke="#f0a020" stroke-width="2.8" stroke-linejoin="round"/><circle cx="70" cy="70" r="2" fill="#f0a020"/>' +
+        '<ellipse cx="54" cy="44" rx="38" ry="19" transform="rotate(-28 70 70)" fill="url(#snGl)"/>' +
+        '<circle cx="70" cy="70" r="55" fill="none" stroke="#000" stroke-opacity=".7" stroke-width="2"/></svg>';
+    // lampka sygnalizacyjna: radelkowana oprawka + zolty klosz (СЛЦ)
+    let rib = "";
+    for (let i = 0; i < 28; i++) { const a = i / 28 * Math.PI * 2, lit = 0.5 + 0.5 * Math.cos(a - Math.PI * 1.25), g = Math.round(40 + lit * 120);
+        rib += '<line x1="' + (15 + 11.2 * Math.cos(a)).toFixed(2) + '" y1="' + (15 + 11.2 * Math.sin(a)).toFixed(2) + '" x2="' + (15 + 14 * Math.cos(a)).toFixed(2) + '" y2="' + (15 + 14 * Math.sin(a)).toFixed(2) +
+            '" stroke="rgb(' + g + ',' + g + ',' + g + ')" stroke-width="1.6"/>'; }
+    const lamp = '<svg class="sn-lsvg" viewBox="0 0 30 30" width="30" height="30"><defs>' +
+        '<radialGradient id="snLOff" cx=".38" cy=".32" r=".75"><stop offset="0" stop-color="#8a7618"/><stop offset=".6" stop-color="#4a3c06"/><stop offset="1" stop-color="#241c02"/></radialGradient>' +
+        '<radialGradient id="snLOn" cx=".4" cy=".36" r=".72"><stop offset="0" stop-color="#fffde0"/><stop offset=".35" stop-color="#ffe85a"/><stop offset=".8" stop-color="#e0aa00"/><stop offset="1" stop-color="#9c6e00"/></radialGradient></defs>' +
+        '<circle data-k="snLampGlow" cx="15" cy="15" r="15" fill="#ffd84a" opacity=".35" style="display:none"/>' +
+        '<circle cx="15" cy="15" r="14.2" fill="#1a1b1c" stroke="#000"/>' + rib +
+        '<circle cx="15" cy="15" r="10.6" fill="#0a0a0a"/><circle data-k="snLampLens" cx="15" cy="15" r="9.4" fill="url(#snLOff)"/>' +
+        '<ellipse cx="12" cy="11.5" rx="4" ry="2.4" fill="#fff" opacity=".45" transform="rotate(-35 12 11.5)"/></svg>';
+    const col = (ctr, cap, capK) => '<div class="sv-navcol"><div class="sv-ctr sn-ctr" data-k="' + ctr + '"></div><div class="sv-ncap"' + (capK ? ' data-k="' + capK + '"' : '') + '>' + apRu(cap) + '</div></div>';
+    // maly przelacznik dzwigniowy poziomy: w lewo ВПР, w prawo АВТ
+    const hlev = (k, right) => '<g data-k="' + k + '"' + (right ? ' style="display:none"' : '') + '>' +
+        '<path d="M38 21 L' + (right ? 60 : 16) + ' 22.6 L' + (right ? 60 : 16) + ' 25.4 L38 27Z" fill="#000" opacity=".45" transform="translate(2 3)"/>' +
+        '<path d="M38 21 L' + (right ? 60 : 16) + ' 22.6 L' + (right ? 60 : 16) + ' 25.4 L38 27Z" fill="url(#snLv)" stroke="#1a1a1a" stroke-width=".6"/>' +
+        '<circle cx="' + (right ? 61 : 15) + '" cy="24" r="4.4" fill="url(#snBall)" stroke="#1a1a1a" stroke-width=".6"/></g>';
+    const landSw = '<svg viewBox="0 0 76 52" width="76" height="52">' +
+        '<circle cx="38" cy="24" r="10.5" fill="#0d0e0f"/><circle cx="38" cy="24" r="9" fill="url(#snNut)" stroke="#111"/>' +
+        '<path d="M38 17.8 L43.4 20.9 L43.4 27.1 L38 30.2 L32.6 27.1 L32.6 20.9Z" fill="url(#snNut)" stroke="#1b1b1b" stroke-width=".7"/><circle cx="38" cy="24" r="2.8" fill="#151515"/>' +
+        hlev("snLandV", false) + hlev("snLandA", true) +
+        apSvgText(L.snLandVpr, 14, 48, 8.5, "#e6e3d6", "middle", .5) + apSvgText(L.snLandAuto, 62, 48, 8.5, "#e6e3d6", "middle", .5) + '</svg>';
+    const extraOld = '<div class="sn-extra"><div class="sn-xcol"><div class="sv-ncap">' + apRu(L.snLand) + '</div><div class="sn-lsw">' + landSw + '<div class="sn-hit2" data-k="snLandHit"></div></div></div>' +
+        '<div class="sn-xcol"><div class="sn-ltbtn" data-k="snLampTest"><div class="sn-ltcap"></div></div><div class="sv-ncap">' + apRu(L.snLampTest) + '</div></div></div>';
+    const rocks = '<div class="sv-rocks"><div class="sv-rock" data-k="snRwInc">' + triV(true) + '</div><div class="sv-rock" data-k="snRwDec">' + triV(false) + '</div></div>';
+    const grp = (cls, label, inner) => '<div class="sn-grp ' + cls + '"><span class="sn-gl">' + apRu(label) + '</span>' + inner + '</div>';
+    return '<div class="sn-box" data-k="snBox">' +
+        // A: lampka (dokladnie nad osia klapki) + przelacznik pod klapka
+        grp("sn-ga", L.snGrpPwr, '<div class="sn-guard"><div class="sn-axis"><div class="sn-lamp">' + lamp + '</div></div><div class="sn-gw">' + guard +
+            '<div class="sn-hit" data-k="snHitTop"></div><div class="sn-hit sn-hitb" data-k="snHitBtn"></div></div>' +
+            '<div class="sn-axis"><div class="sv-ncap">' + apRu(L.snSw) + '</div></div></div>') +
+        // B: КПП
+        '<div class="sn-kcol"><div class="sn-spd"><div class="sv-navcol"><div class="sv-ctr sn-ctr" data-k="snSpdCtr"></div><div class="sv-ncap" data-k="snSpdCap">' + apRu(L.snSpd + ", " + L.kt) + '</div></div>' +
+        '<div class="sv-rocks"><div class="sv-rock" data-k="snSpdInc">' + triV(true) + '</div><div class="sv-rock" data-k="snSpdDec">' + triV(false) + '</div></div></div>' +
+        '<div class="sn-kpp">' + kpp + '</div></div>' +
+        // C: lampki + nixie z przyciskiem АЭР
+        grp("sn-gc", L.snGrpSig, '<div class="sn-mid"><div class="sn-lamps"><div class="sv-ann sv-grn" data-k="snLReady">' + apRu(L.snReady) + '</div><div class="sv-ann sv-amb" data-k="snLLoc">' + apRu(L.snLoc) +
+            '</div><div class="sv-ann sv-amb" data-k="snLGs">' + apRu(L.snGs) + '</div><div class="sv-ann" data-k="snLDh">' + apRu(L.snDh) + '</div></div>' +
+            '<div class="sn-nixrow"><div class="sn-nixwrap"><div class="sn-nixbz"><div class="sn-nix" data-k="snNix"></div></div><div class="sv-ncap" data-k="snRwCap">' + apRu(L.snAero) + '</div></div>' +
+            '<div class="sn-apbtns"><div class="sv-btn sn-apbtn" data-k="snApBtn">' + apRu(L.snApBtn) + '</div><div class="sv-btn sn-apbtn" data-k="snApOk">' + apRu(L.snApOk) + '</div></div></div>' +
+            (compact ? '<div class="sn-crow"><div class="sn-row">' + col("snRwCtr", L.snRwSel) + rocks + '</div>' + col("snDistCtr", L.snDistKm.replace(", ", ",\n"), "snDistCap").replace('data-k="snDistCap"', 'data-k="snDistCap" data-br="1"') + col("snAngCtr", L.snAng) + '</div>' : '') + '</div>') +
+        // D: liczniki
+        (compact ? '' : grp("sn-gd", L.snGrpRw, '<div class="sn-ctrs"><div class="sn-row">' + col("snRwCtr", L.snRwSel) + rocks + '</div>' +
+            '<div class="sn-row">' + col("snDistCtr", L.snDistKm, "snDistCap") + '</div><div class="sn-row">' + col("snAngCtr", L.snAng) + '</div></div>')) +
+        // E: ЗАХОД, ПОСАДКА, КОНТР. ЛАМП
+        grp("sn-ge", L.snGrpMode, '<div class="sn-extra"><div class="sv-keycell"><div class="sv-key sn-key" data-k="snApp"><span class="sv-lens"><span>' + apRu(L.snApp) + '</span></span></div></div>' +
+            '<div class="sn-xcol"><div class="sv-ncap">' + apRu(L.snLand) + '</div><div class="sn-lsw">' + landSw + '<div class="sn-hit2" data-k="snLandHit"></div></div></div>' +
+            '<div class="sn-xcol sn-ltcol"><div class="sn-ltbtn" data-k="snLampTest"><div class="sn-ltcap"></div></div><div class="sv-ncap">' + apRu(compact ? L.snLampTest.replace(" ", "\n") : L.snLampTest) + '</div></div></div>') +
+        '</div>';
 }
 
 // Replika pulpitu AP-28L1 (lewa strona) + nastawniki obok (prawa strona)
@@ -862,6 +1222,8 @@ function apAn28HTML(vem) {
     const bank = '<div class="an-bank an-blk">' + screw(4, 4, 30) + screw(449, 4, 65) + screw(4, 159, 10) + screw(449, 159, 80) +
         T(L.bankTitle, 0, 12, 13, 466) + apBankSelHTML(300, 112, 15) +
         T(L.bankSub, 0, 158, 9, 466) + '</div>';
+    const snb = '<div class="an-snb an-blk">' + screw(4, 4, 40) + screw(AP_AN_WIDTH - 1, 4, 15) + screw(4, 249, 70) + screw(AP_AN_WIDTH - 1, 249, 25) +
+        T(L.snTitle, 0, 12, 13, AP_AN_WIDTH + 16) + apSnHTML() + '</div>';
 
     // prawa strona: nastawniki, trasa, wyswietlacz
     const triV = (up) => '<svg viewBox="0 0 10 10"><path d="' + (up ? "M1 8 L5 2 L9 8Z" : "M1 2 L5 8 L9 2Z") + '"/></svg>';
@@ -886,7 +1248,7 @@ function apAn28HTML(vem) {
 
     return '<div class="sv-root an-root"><style>' + AP_SKIN_CSS + AP_AN_CSS + AP_VEM_CSS + '</style><div class="sv-body"><div class="an-wrap">' +
         '<div class="an-pulpit">' + top + side(2, "clUpL", "clDnL", "lvL") + side(416, "clUpR", "clDnR", "lvR") + low + bank + '</div>' + sidepl +
-        '</div></div></div>';
+        '</div>' + snb + '</div></div>';
 }
 
 
@@ -943,7 +1305,7 @@ const AP_VEM_CSS = `
 .vem > svg,.vem-cells{position:absolute;left:0;top:0;width:${AP_VEM_SIZE}px;height:${AP_VEM_SIZE}px}
 .vem-top{pointer-events:none}
 .vem-cell{position:absolute;overflow:hidden;color:#ebe8dc;text-align:center;
- background:linear-gradient(#050505 0%,#1d1e1f 30%,#262728 50%,#1d1e1f 70%,#050505 100%)}
+ background:linear-gradient(180deg,#000 0%,#1a1a1a 14%,#2b2b2b 50%,#171717 86%,#000 100%)}
 .vem-cell::after{content:"";position:absolute;left:0;top:0;right:0;bottom:0;pointer-events:none;
  background:linear-gradient(rgba(0,0,0,.85) 0%,rgba(0,0,0,0) 30%,rgba(0,0,0,0) 70%,rgba(0,0,0,.85) 100%)}
 .vem-strip{position:absolute;left:0;top:0;width:100%}
@@ -962,7 +1324,7 @@ function apVemHTML(metric) {
         '<radialGradient id="vemBz" cx=".35" cy=".3" r=".8"><stop offset="0" stop-color="#3a3c3d"/><stop offset=".5" stop-color="#232425"/><stop offset="1" stop-color="#0b0c0d"/></radialGradient>' +
         '<radialGradient id="vemFace" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#121313"/><stop offset=".85" stop-color="#0e0f0f"/><stop offset="1" stop-color="#030303"/></radialGradient>' +
         '<radialGradient id="vemBr" cx=".38" cy=".32" r=".7"><stop offset="0" stop-color="#f3dc93"/><stop offset=".45" stop-color="#b48a38"/><stop offset="1" stop-color="#4f3a12"/></radialGradient>' +
-        '<linearGradient id="vemCase" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#232527"/><stop offset=".45" stop-color="#161718"/><stop offset="1" stop-color="#0a0b0c"/></linearGradient>' +
+        '<linearGradient id="vemCase" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3a3c3d"/><stop offset=".5" stop-color="#232425"/><stop offset="1" stop-color="#0b0c0d"/></linearGradient>' +
         '</defs>' +
         '<rect x="0" y="0" width="240" height="240" rx="9" fill="url(#vemCase)"/>' +
         '<rect x="1" y="1" width="238" height="238" rx="8.5" fill="none" stroke="#fff" stroke-opacity=".07" stroke-width="1"/>';
@@ -1018,7 +1380,7 @@ function apVemHTML(metric) {
 
     // wskazowka, piasta, szklo
     const top = '<svg class="vem-top" viewBox="0 0 240 240"><defs>' +
-        '<linearGradient id="vemGl" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".035"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient></defs>' +
+        '<linearGradient id="vemGl" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".22"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient></defs>' +
         '<g data-vem="needle"><path d="M121.4 158 L118.6 158 L117.6 120 L118.3 64 L120 24 L121.7 64 L122.4 120Z" fill="#000" fill-opacity=".45" transform="translate(1.6 2.2)"/>' +
         '<path d="M121.4 158 L118.6 158 L117.6 120 L118.3 64 L120 24 L121.7 64 L122.4 120Z" fill="#e4e1d6"/>' +
         '<path d="M120 24 L121.7 64 L122.4 120 L121.4 158 L120 158Z" fill="#b9b6aa" fill-opacity=".3"/></g>' +
@@ -1100,6 +1462,9 @@ class AP28Panel extends AP28_BASE {
             const vf = parseFloat(window.localStorage.getItem(AP_CONFIG.storagePrefix + "vorfreq")); if (vf >= 108 && vf <= 117.95) this.vorFreq = vf;
             const vo = parseFloat(window.localStorage.getItem(AP_CONFIG.storagePrefix + "vorobs")); if (vo >= 0 && vo < 360) this.vorObs = vo;
         } catch (e) { }
+        this.sn = { cover: false, pwr: false, arm: false, locCap: false, gsCap: false, rw: null, list: [], crs: 0, crsUser: false, crsDirty: false, apSel: null, apPrev: null, apPrevT: 0, rwSel: null, autoSel: false, land: false, flare: false, retard: false, raPrev: 1e9,
+            sess: null, next: 0, listNext: 0, busy: false, done: new Set(), dhT: 0, prevH: 1e9, i: { valid: false, gsValid: false } };
+        this._apCache = new Map();                     // lotniska z pelnymi danymi (pasy)
         this._vor = { st: new Map(), sess: null, busy: false, next: 0, best: null, apSess: null, ilsNext: 0, ilsDone: new Set() };
         this._yd = { active: false, base: 0, t: null, bad: 0, sampleT: 0, sampleB: 0 };
         this._adf = { ahead: 0, lastQdm: null };
@@ -1156,7 +1521,7 @@ class AP28Panel extends AP28_BASE {
                 }
                 return;
             }
-            this.version = "AP-28 v1.18.1";
+            this.version = "AP-28 v1.25.5";
             this._buildSkin();
             if (this.skinOn) {
                 if (this.skinKind !== "an28") this._initListeners();
@@ -1223,6 +1588,7 @@ class AP28Panel extends AP28_BASE {
             holder.innerHTML = (kind === "an28") ? apAn28HTML(this.vemOn) : apSkinHTML(this.vemOn);
             const root = holder.firstElementChild;
             this._vemMount(root);
+            this._snMount(root);
             if (kind === "an28") {
                 this.scaleWrap.appendChild(root);
                 this.skinRoot = root;
@@ -1426,8 +1792,17 @@ class AP28Panel extends AP28_BASE {
         }
         if (Math.abs(s - this._scale) < 0.004 && wrap._w === natW && wrap._h === natH) return;
         this._scale = s; wrap._w = natW; wrap._h = natH;
-        root.style.transformOrigin = "0 0";
-        root.style.transform = "scale(" + s.toFixed(4) + ")";
+        if (this._useZoom === undefined && AP_CONFIG.zoomScale) {
+            try {
+                root.style.zoom = "2"; const w2 = root.getBoundingClientRect().width;
+                root.style.zoom = ""; const w1 = root.getBoundingClientRect().width;
+                this._useZoom = w1 > 0 && w2 > w1 * 1.5;
+            } catch (e) { this._useZoom = false; }
+            this.log("skalowanie: " + (this._useZoom ? "zoom" : "transform"));
+        }
+        if (this._useZoom === undefined) this._useZoom = false;
+        if (this._useZoom) { root.style.transform = ""; root.style.zoom = s.toFixed(4); }
+        else { root.style.transformOrigin = "0 0"; root.style.transform = "scale(" + s.toFixed(4) + ")"; }
         wrap.style.width = Math.floor(natW * s) + "px";
         wrap.style.height = Math.floor(natH * s) + "px";
     }
@@ -1685,6 +2060,8 @@ class AP28Panel extends AP28_BASE {
             try { this._ydTick(); } catch (e) { this.log("YD: " + e, "ERROR"); }
             try { this._atTick(); } catch (e) { this.log("AT: " + e, "ERROR"); }
             try { this._vorTick(); } catch (e) { }
+            try { this._snTick(); } catch (e) { this.log("СНПС: " + e, "ERROR"); }
+            try { this._voiceTick(); this._sayTick(); if (this._lampTest) this._lampTestApply(); } catch (e) { this.log("РИ: " + e, "ERROR"); }
             if (!this.apOn) { this._lastTime = null; return; }
 
             const C = AP_CONFIG, c = this.cur;
@@ -1720,6 +2097,8 @@ class AP28Panel extends AP28_BASE {
                 desiredBank = this.bankTarget;            // galka RAZVOROT: skoordynowany zakret
                 bankSlew = C.bankSlewHdg;
             }
+            const snB = this._snBank();                 // СНПС ЗАХОД: kurs pasa ma pierwszenstwo
+            if (snB !== null) { desiredBank = snB; bankSlew = C.bankSlewHdg; }
             this.cmdBank = apSlew(this.cmdBank, desiredBank, bankSlew * dt);
             const bankErr = apWrap180(this.cmdBank - c.bank);
             const aileron = this.bankPID.update(bankErr, c.bank, dt, true);
@@ -1734,6 +2113,8 @@ class AP28Panel extends AP28_BASE {
                 desiredVS = this.vsTarget;
                 vsSlew = C.vsSlewAlt;
             }
+            const snV = this._snVS();                   // СНПС: po zlapaniu sciezki
+            if (snV !== null) { desiredVS = snV; vsSlew = this.sn.flare ? Math.max(C.vsSlewAlt, 900) : C.vsSlewAlt; }
             this.cmdVS = apSlew(this.cmdVS, desiredVS, vsSlew * dt);
             const vsErr = this.cmdVS - c.vs;
             const elevator = this.vsPID.update(vsErr, c.vs, dt, false);
@@ -1874,6 +2255,8 @@ class AP28Panel extends AP28_BASE {
     }
 
     disengage(reason) {
+        if (this.apOn && this.cur && !this.cur.onGround) this._say("v_apoff");
+        if (this.sn) { this.sn.arm = false; this.sn.locCap = false; this.sn.gsCap = false; this.sn.land = false; this.sn.flare = false; }
         this.apOn = false;
         this.latMode = "OFF";
         this.vertMode = "OFF";
@@ -1901,6 +2284,7 @@ class AP28Panel extends AP28_BASE {
     }
 
     onLVLClicked() {
+        this._snCancel();
         // przycisk ratunkowy: zawsze wlacza AP i poziomuje we wszystkich osiach
         if (!this.engage()) { this.updateUI(); return; }
         this.latMode = "LVL";
@@ -1910,6 +2294,7 @@ class AP28Panel extends AP28_BASE {
     }
 
     onHDGClicked() {
+        this._snCancel("lat");
         if (!this.apOn) {
             if (!this.engage()) { this.updateUI(); return; }
             this.vertMode = "LVL";
@@ -1928,6 +2313,7 @@ class AP28Panel extends AP28_BASE {
     }
 
     onALTClicked() {
+        this._snCancel("vert");
         if (!this.apOn) {
             if (!this.engage()) { this.updateUI(); return; }
             this.latMode = "LVL";
@@ -2069,7 +2455,7 @@ class AP28Panel extends AP28_BASE {
         return this._facInit().then(() => new Promise((resolve) => {
             const k = this._icaoKey(ic);
             let done = false;
-            const finish = (v) => { if (!done) { done = true; this._facPending.delete(k); resolve(v); } };
+            const finish = (v) => { if (!done) { done = true; this._facPending.delete(k); if (v && v.runways) this._apCacheAdd(v); resolve(v); } };
             this._facPending.set(k, (f) => finish(f));
             try {
                 const p = Coherent.call("LOAD_AIRPORT_FROM_STRUCT", ic, 0xFFFF);
@@ -2156,6 +2542,8 @@ class AP28Panel extends AP28_BASE {
             if (arr) legItems(this._procLegs(arr, "arrivals", starName, pick("arrivalTransition"), this._rwyFrom(pick("destinationRunway", "arrivalRunway")), false), "STAR");
             else if (starName) this.log("STAR: brak danych lotniska");
             if (r && isIcao(r.destinationAirport)) items.push({ icao: r.destinationAirport });
+            this._destIcao = (r && isIcao(r.destinationAirport)) ? r.destinationAirport : null;     // dla СНПС
+            this._destRwy = r ? this._rwyFrom(pick("destinationRunway", "arrivalRunway")) : "";
             this.log("EFB route: " + items.length + " items, dep " + this._icaoText(r && r.departureAirport) + ", dest " + this._icaoText(r && r.destinationAirport));
             return Promise.all(items.map((it) => it.icao ? this._loadFacility(it.icao).then((p) => {
                 if (!p) this.log("not found: " + this._icaoText(it.icao));
@@ -2338,6 +2726,7 @@ class AP28Panel extends AP28_BASE {
     }
 
     onNAVClicked() {
+        this._snCancel("lat");
         if (!this.apOn) {
             if (!this.engage()) { this.updateUI(); return; }
             this.vertMode = "LVL";
@@ -2537,6 +2926,7 @@ class AP28Panel extends AP28_BASE {
     }
 
     anKnob(delta) {
+        this._snCancel();
         const A = this.an;
         if (A.hLock) { this._setNotice("LOCK"); this.updateUI(); return; }
         A.knob = apClamp(A.knob + delta, -3, 3);
@@ -2549,6 +2939,7 @@ class AP28Panel extends AP28_BASE {
     }
 
     anSetGsw(v) {
+        this._snCancel();
         const A = this.an;
         if (A.gsw === v) return;
         A.gsw = v;
@@ -2587,6 +2978,7 @@ class AP28Panel extends AP28_BASE {
     }
 
     anHorizon() {
+        this._snCancel();
         const A = this.an;
         if (!A.pwr || !(A.ready || this.apOn)) { this._setNotice("NOT READY"); this.updateUI(); return; }
         if (!this.apOn && !this.engage()) { this.updateUI(); return; }
@@ -2598,6 +2990,7 @@ class AP28Panel extends AP28_BASE {
     }
 
     anKV() {
+        this._snCancel();
         const A = this.an;
         if (!this.apOn || !A.pitchCh || A.hLvl || this.cws) return;
         if (this.vertMode === "ALT") { this.vertMode = "VS"; A.kv = false; this._anCaptureVS(); }
@@ -2698,6 +3091,8 @@ class AP28Panel extends AP28_BASE {
             if (this.latMode === "NAV") l2 += this._navText() + "   ";
             if (this.vertMode === "ALT") l2 += N.shKv + " " + this._altStr();
             if (this.vertMode === "VS") l2 += L.shortVs + " " + (this.vsTarget >= 0 ? "+" : "-") + Math.abs(this.vsTarget);
+            const snT = this._snText(N.on);
+            if (snT) { l1 = snT[0]; l2 = snT[1]; }
         }
         if (performance.now() < this._noticeUntil) {
             const map = { "NA ZIEMI": L.ground, "NO ROUTE": L.noRoute, "ROUTE END": L.routeEnd, "LOADING": L.loading,
@@ -2941,7 +3336,8 @@ class AP28Panel extends AP28_BASE {
         const ils = f.ils || null;
         const isLoc = f.type === 6 || f.vorClass === 4 || !!ils;
         const loc = isLoc && ils && isFinite(ils.localizerCourse) ? apWrap360(ils.localizerCourse) : (isLoc ? -1 : null);
-        this._vor.st.set(ident + "|" + f.freqMHz.toFixed(2) + "|" + f.lat.toFixed(2), { ident: ident, freq: f.freqMHz, lat: f.lat, lon: f.lon, loc: loc });
+        const gsA = ils ? (isFinite(ils.glideslopeAngle) ? ils.glideslopeAngle : (isFinite(ils.gsAngle) ? ils.gsAngle : null)) : null;
+        this._vor.st.set(ident + "|" + f.freqMHz.toFixed(2) + "|" + f.lat.toFixed(2), { ident: ident, freq: f.freqMHz, lat: f.lat, lon: f.lon, loc: loc, gs: gsA });
     }
 
     _vorPick() {
@@ -2956,6 +3352,628 @@ class AP28Panel extends AP28_BASE {
             (best.loc !== null && best.loc !== undefined ? " (ILS/KRM, kurs " + (best.loc >= 0 ? Math.round(best.loc) : "?") + ")" : "") + " " + bd.toFixed(0) + " NM" : "brak stacji") +
             " (w pamieci " + V.st.size + " stacji)");
         V.best = best;
+    }
+
+
+    // =====================================================================
+    //  СНПС «Курс-С» - fikcyjny radziecki satelitarny system ladowania
+    //  Z bazy lotnisk gry: prog pasa, kurs, wysokosc -> wirtualny kurs (jak KRM) i sciezka (jak GRM).
+    //  Wskazania (lampki, КПП) dzialaja zawsze po wlaczeniu; AP prowadzi po wcisnieciu ЗАХОД.
+    // =====================================================================
+    _apIdent(ap) {
+        const s = ap && ap.icaoStruct;
+        return String((s && s.ident) || (typeof ap.icao === "string" ? ap.icao.slice(7) : (ap.icao && ap.icao.ident)) || "").trim();
+    }
+    _apCacheAdd(ap) {
+        const id = this._apIdent(ap);
+        if (!id || !ap.runways || !ap.runways.length) return;
+        if (this._apCache.size > 300 && !this._apCache.has(id)) this._apCache.delete(this._apCache.keys().next().value);
+        this._apCache.set(id, ap);
+    }
+
+    // konce pasow jednego lotniska: prog, kurs ladowania (rzeczywisty), wysokosc progu
+    _snEnds(ap) {
+        const out = [], id = this._apIdent(ap), mv = this.cur.magvar || 0;
+        const fin = (v, d) => isFinite(v) ? v : d;
+        (ap.runways || []).forEach((r) => {
+            if (!this._snKeysLogged) { this._snKeysLogged = true; this.log("СНПС: pola pasa: " + Object.keys(r).join(",") + " | lotnisko: " + Object.keys(ap).filter((k) => typeof ap[k] !== "object").join(",")); }
+            if (!this._validLL(r.latitude, r.longitude) || !isFinite(r.direction)) return;
+            const lenM = fin(r.length, 1500), lenNm = lenM / 1852;
+            const des = String(r.designation || "").split("-");
+            const mk = (prim) => {
+                const hdg = apWrap360(prim ? r.direction : r.direction + 180);
+                const disp = fin(prim ? r.primaryThresholdLength : r.secondaryThresholdLength, 0) / 1852;
+                const thr = apDest({ lat: r.latitude, lon: r.longitude }, apWrap360(hdg + 180), Math.max(0, lenNm / 2 - disp));
+                let num = parseInt(des[prim ? 0 : 1], 10);
+                if (!(num >= 1 && num <= 36)) num = Math.round(apWrap360(hdg - mv) / 10) || 36;
+                const name = this._rwyName(num, prim ? r.designatorCharPrimary : r.designatorCharSecondary);
+                const elM = fin(prim ? r.primaryElevation : r.secondaryElevation, NaN);
+                const fq = prim ? r.primaryILSFrequency : r.secondaryILSFrequency;
+                out.push({ key: id + "/" + name, ap: id, name: name, hdg: hdg, lat: thr.lat, lon: thr.lon,
+                    elevFt: (isFinite(elM) && elM !== 0 ? elM : fin(r.elevation, fin(ap.altitude, 0))) * 3.28084, lenNm: Math.max(0.2, lenNm - disp),
+                    ilsFreq: (fq && fq.freqMHz > 107) ? fq.freqMHz : 0, gs: null });
+            };
+            mk(true); mk(false);
+        });
+        return out;
+    }
+
+    // lista pasow do wyboru, najlepszy pierwszy
+    _snCandidates(all) {
+        const c = this.cur, S = this.sn, C = AP_CONFIG.sn, dest = this._destIcao ? String(this._destIcao.ident || "").trim() : "";
+        const list = [], mv = c.magvar || 0;
+        this._apCache.forEach((ap) => {
+            if (this._validLL(ap.lat, ap.lon) && apDst(ap, c) > C.maxNm + 5) return;
+            this._snEnds(ap).forEach((e) => {
+                const d = apDst(e, c);
+                if (d > C.maxNm) return;
+                const b = apBrg(e, c), rel = apRad(apWrap180(b - e.hdg)), along = -d * Math.cos(rel);
+                e.mag = apWrap360(e.hdg - mv);
+                e.d = d;
+                let score = d + Math.abs(apWrap180(c.track - e.hdg)) / 15 + (along < 0.5 ? 40 : 0);
+                if (e.ap === dest) { score -= 5; if (this._destRwy && e.name === this._destRwy) score -= 20; }
+                e.score = score;
+                list.push(e);
+            });
+        });
+        list.sort((a, b) => a.score - b.score);
+        if (all) return list;
+        if (S.rwSel) { const r = list.filter((x) => x.key === S.rwSel); if (r.length) return r; }     // pas wybrany bebenkiem ВПП
+        if (S.apSel) return list.filter((x) => x.ap === S.apSel);                                     // lotnisko przyjete przyciskiem ВВОД
+        return list;
+    }
+
+    // АЭР: podglad nastepnego lotniska (od najblizszego; na koncu АВТ = wybor automatyczny). Lampy nixie migaja.
+    snApNext() {
+        const S = this.sn, now = performance.now();
+        if (!S.pwr || S.bootEnd) return;
+        if (S.arm) { this._setNotice(AP_LABELS.snRwLock, 2500); this.updateUI(); return; }
+        const dmin = new Map();
+        this._snCandidates(true).forEach((e) => { if (!dmin.has(e.ap) || e.d < dmin.get(e.ap)) dmin.set(e.ap, e.d); });
+        const aps = [...dmin.keys()].sort((a, b) => dmin.get(a) - dmin.get(b));
+        if (!aps.length) { this._setNotice(AP_LABELS.snNoRwy); this.updateUI(); return; }
+        aps.push("*");
+        const cur = (S.apPrev !== null && now < S.apPrevT) ? S.apPrev : (S.apSel || (S.rw ? S.rw.ap : "*"));
+        S.apPrev = aps[(aps.indexOf(cur) + 1) % aps.length];
+        S.apPrevT = now + 8000;
+        this._setNotice(AP_LABELS.snApPrev, 2500);
+        this.updateUI();
+    }
+    // ВВОД: przyjecie lotniska z podgladu (albo zablokowanie obecnego)
+    snApOk() {
+        const S = this.sn, now = performance.now();
+        if (!S.pwr || S.bootEnd) return;
+        if (S.arm) { this._setNotice(AP_LABELS.snRwLock, 2500); this.updateUI(); return; }
+        if (S.apPrev !== null && now < S.apPrevT) S.apSel = S.apPrev === "*" ? null : S.apPrev;
+        else if (S.rw) S.apSel = S.rw.ap;
+        else return;
+        S.apPrev = null; S.rwSel = null; S.crsDirty = true; S.listNext = 0;
+        this.log("СНПС: lotnisko " + (S.apSel || "АВТ"));
+        this._setNotice(AP_LABELS.snApSet, 2500);
+        this.updateUI();
+    }
+    // bebenek ВПП: nastepny / poprzedni pas tego lotniska (blokuje tez lotnisko)
+    snRwStep(dir) {
+        const S = this.sn;
+        if (!S.pwr || S.bootEnd || !S.rw) return;
+        if (S.arm) { this._setNotice(AP_LABELS.snRwLock, 2500); this.updateUI(); return; }
+        const ap = this._apCache.get(S.rw.ap);
+        if (!ap) return;
+        const ends = this._snEnds(ap).sort((a, b) => a.name.localeCompare(b.name));
+        if (ends.length < 2) { this._setNotice(AP_LABELS.snNoRwy); this.updateUI(); return; }
+        let i = ends.findIndex((e) => e.name === S.rw.name);
+        i = (i + dir + ends.length) % ends.length;
+        S.apSel = S.rw.ap; S.rwSel = ends[i].key; S.crsDirty = true; S.listNext = 0;
+        this.log("СНПС: ВПП " + ends[i].name);
+        this.updateUI();
+    }
+
+    // szukanie lotnisk w poblizu (pelne dane z pasami trafiaja do this._apCache)
+    _snScan() {
+        const S = this.sn, now = performance.now(), c = this.cur;
+        if (S.busy || now < S.next || !this._validLL(c.lat, c.lon)) return;
+        S.busy = true; S.next = now + 20000;
+        const p = S.sess !== null ? Promise.resolve(S.sess) : this._nearStart(1);
+        p.then((sid) => { S.sess = sid; return this._nearSearch(sid, c.lat, c.lon, AP_CONFIG.sn.searchNm * 1852, 30); })
+            .then((res) => {
+                const added = ((res && res.added) || []).map((ic) => typeof ic === "string" ? this._icaoFromStr(ic) : ic)
+                    .filter((ic) => { const k = this._icaoKey(ic); if (S.done.has(k)) return false; S.done.add(k); return true; });
+                if (this._destIcao && !this._apCache.has(String(this._destIcao.ident || "").trim())) added.unshift(this._destIcao);
+                if (added.length) this.log("СНПС: wczytuje " + added.length + " lotnisk");
+                return Promise.all(added.slice(0, 30).map((ic) => this._loadAirportFull(ic).catch(() => null)));
+            })
+            .then(() => { S.busy = false; S.listNext = 0; })
+            .catch((e) => { S.busy = false; S.sess = null; this.log("СНПС scan: " + e, "ERROR"); });
+    }
+
+    // kat sciezki z danych ILS tego pasa (jesli gra go podaje)
+    _snGsFor(e) {
+        if (!e.ilsFreq) return AP_CONFIG.sn.gsDeg;
+        let best = null, bd = 6;
+        this._vor.st.forEach((s) => { if (Math.abs(s.freq - e.ilsFreq) < 0.005 && s.gs > 1.5 && s.gs < 6) { const d = apDst(s, e); if (d < bd) { bd = d; best = s; } } });
+        return best ? best.gs : AP_CONFIG.sn.gsDeg;
+    }
+
+    _snSetRw(e, why) {
+        const S = this.sn;
+        if (S.rw && e && S.rw.key === e.key) { S.rw = e; return; }
+        if (S.arm) this._snStop(AP_LABELS.snAppOff);
+        S.rw = e; S.locCap = false; S.gsCap = false; S.prevH = 1e9;
+        if (e) {
+            e.gs = this._snGsFor(e);
+            this.log("СНПС: " + e.ap + " ВПП " + e.name + " (" + why + ") kurs " + Math.round(e.hdg) + "T prog " + e.lat.toFixed(5) + "," + e.lon.toFixed(5) +
+                " elev " + Math.round(e.elevFt) + " ft, sciezka " + e.gs.toFixed(1) + "°" + (e.ilsFreq ? ", ILS " + e.ilsFreq.toFixed(2) : ""));
+        }
+    }
+
+    _snTick() {
+        const S = this.sn, C = AP_CONFIG.sn, c = this.cur, now = performance.now();
+        if (!S.pwr || now < S.bootEnd) { S.i = { valid: false, gsValid: false }; if (S.arm) this._snStop(); this._snDrawKpp(); this._snExport(); return; }
+        if (S.bootEnd) { S.bootEnd = 0; this._setNotice(AP_LABELS.snSearch, 3000); this.log("СНПС: gotowy"); this.updateUI(); }
+        this._snScan();
+        if (now >= S.listNext) {
+            S.listNext = now + 2000;
+            S.list = this._snCandidates();
+            if (S.rw) { const f = S.list.find((x) => x.key === S.rw.key); if (f) S.rw = Object.assign(f, { gs: S.rw.gs }); }
+            const why = S.rwSel ? "ВПП recznie" : (S.apSel ? "lotnisko recznie" : "auto");
+            if (S.list.length && (!S.arm || S.crsDirty)) {
+                const best = S.list[0];
+                if (!S.rw || S.crsDirty) this._snSetRw(best, why);
+                else if (best.key !== S.rw.key && best.score < (S.rw.score === undefined ? 1e9 : S.rw.score) - 3) this._snSetRw(best, why);
+            } else if (!S.list.length && S.apSel && S.rw && !S.arm) this._snSetRw(null, why);
+            S.crsDirty = false;
+            if (!S.crsUser && S.rw && isFinite(S.rw.mag)) S.crs = Math.round(S.rw.mag) % 360 || 360;
+        }
+        const e = S.rw;
+        if (!e) { S.i = { valid: false, gsValid: false }; this._snDrawKpp(); return; }
+        // geometria wzgledem progu
+        const d = apDst(e, c), b = apBrg(e, c), rel = apRad(apWrap180(b - e.hdg));
+        const along = -d * Math.cos(rel), xtk = d * Math.sin(rel);              // [NM]: przed progiem +, w prawo od osi +
+        const altT = this._sv("PLANE ALTITUDE", "feet");
+        const hThr = altT - e.elevFt;                                             // nad progiem [ft]
+        const tg = Math.tan(apRad(e.gs)), tchFt = C.tchM * 3.28084, gpi = tchFt / tg / 6076.12;
+        const locAng = apDeg(Math.atan2(xtk, along + e.lenNm));                   // + = samolot w prawo od osi
+        const gsAng = apDeg(Math.atan2(hThr / 6076.12, along + gpi));
+        const devFt = hThr - (tchFt + along * 6076.12 * tg);                      // + = nad sciezka
+        const valid = d < C.maxNm + 5 && along > -0.3 && Math.abs(locAng) < 35;
+        // ladowanie automatyczne: wyrownanie i zdjecie gazu wg wysokosci radiowej
+        if (S.land) {
+            const ra = this._sv("RADIO HEIGHT", "feet") || this._sv("PLANE ALT ABOVE GROUND", "feet") || 0;
+            if (!S.flare && ra <= C.flareFt) { S.flare = true; S.flareTau = 0; this.log("СНПС: wyrownanie (RA " + Math.round(ra) + " ft)"); }
+            if (!S.retard && ra <= C.retardFt && this.atOn) { S.retard = true; this.log("СНПС: zdejmowanie gazu (RA " + Math.round(ra) + " ft)"); }
+            S.ra = ra;
+        } else { S.flare = false; S.retard = false; }
+        S.i = { valid: valid || S.land, gsValid: (valid && along > 0.05 && gsAng > -1) || S.land, d: d, along: along, xtk: xtk, locAng: locAng,
+            gsDev: gsAng - e.gs, devFt: devFt, hThr: hThr, tg: tg };
+        // ЗАХОД: lapanie kursu i sciezki
+        if (S.arm) {
+            if (S.land && c.onGround) {                    // przyziemienie po ladowaniu automatycznym
+                this.log("СНПС: przyziemienie (VS " + Math.round(c.vs) + " fpm)");
+                this._say("v_touch");
+                S.land = false; S.flare = false; S.retard = false;
+                if (this.atOn) this._atOff(AP_LABELS.snTouch);
+                this._snStop(); this.disengage(AP_LABELS.snTouch); this._setNotice(AP_LABELS.snTouch, 5000); this.updateUI();
+            } else if (!this.apOn || (c.onGround && !S.land) || (along < -0.2 && S.locCap && !S.land)) this._snStop(this.apOn ? AP_LABELS.snAppOff : null);
+            else {
+                if (!S.locCap && valid && Math.abs(locAng) < C.capLoc) { S.locCap = true; this._say("v_kurs"); this.log("СНПС: KURS zlapany (" + locAng.toFixed(2) + "°)"); }
+                if (!S.gsCap && S.locCap && S.i.gsValid && Math.abs(locAng) < 5 && devFt > -40 && devFt < C.capGsFt) {
+                    S.gsCap = true; this._say("v_glis");
+                    if (this.apOn) this.vertMode = "SN";        // sciezka zlapana: ВЫСОТА / ВС gasna this.log("СНПС: SCIEZKA zlapana (" + Math.round(devFt) + " ft, " + (gsAng - e.gs).toFixed(2) + "°)");
+                }
+            }
+        }
+        // ВПР: wysokosc decyzji - AP sie wylacza, dalej recznie
+        const dhFt = C.dhM * 3.28084;
+        if (valid && along > 0 && hThr <= dhFt && S.prevH > dhFt) {
+            S.dhT = now;
+            this.log("СНПС: ВПР " + C.dhM + " m");
+            this._say("v_vpr");
+            if (this.apOn && S.arm && S.autoSel && S.gsCap) {
+                S.land = true; this._say("v_autoland"); this.log("СНПС: АВТ - ladowanie automatyczne");
+            } else if (this.apOn && S.arm) { this._snStop(); this.disengage(AP_LABELS.snDhOff); this._setNotice(AP_LABELS.snDhOff, 6000); this.updateUI(); }
+        }
+        S.prevH = hThr;
+        this._snDrawKpp();
+        this._snExport();
+    }
+    // okno СНПС «Курс-С» (osobny mod): stan -> L:AP28_SNW_*, przyciski <- L:AP28_SNW_CMD/ARG/SEQ
+    _snwTick() {
+        const now = performance.now();
+        if (now < (this._snwT || 0)) return;
+        this._snwT = now + 100;
+        let seq = 0;
+        try { seq = SimVar.GetSimVarValue("L:AP28_SNW_SEQ", "number") || 0; } catch (e) { }
+        if (this._snwSeq === undefined) this._snwSeq = seq;
+        else if (seq !== this._snwSeq) {
+            this._snwSeq = seq;
+            let c = 0, a = 0;
+            try { c = SimVar.GetSimVarValue("L:AP28_SNW_CMD", "number") || 0; a = SimVar.GetSimVarValue("L:AP28_SNW_ARG", "number") || 0; } catch (e) { }
+            this._snwCmd(c, a);
+        }
+        const S = this.sn, C = AP_CONFIG.sn, i = S.i || {};
+        const W = this._snwW || (this._snwW = {});
+        const w = (n, v) => { if (W[n] === v) return; W[n] = v; try { SimVar.SetSimVarValue("L:AP28_SNW_" + n, "number", v); } catch (e) { } };
+        if (now >= (this._snwHb || 0)) { this._snwHb = now + 500; w("T", Math.round(Date.now() / 500) % 100000); }
+        const e = S.pwr ? S.rw : null;
+        w("PWR", S.pwr ? 1 : 0); w("BOOT", S.bootEnd ? 1 : 0); w("COVER", S.cover ? 1 : 0); w("ARM", S.arm ? 1 : 0);
+        w("LOC", S.locCap ? 1 : 0); w("GS", S.gsCap ? 1 : 0); w("AUTO", S.autoSel ? 1 : 0); w("LT", this._lampTest ? 1 : 0);
+        w("READY", S.pwr && e && i.valid ? 1 : 0);
+        const dh = S.pwr && i.valid && i.along > 0 && i.hThr <= C.dhM * 3.28084;
+        w("DH", dh ? 1 : 0); w("DHN", dh && now - S.dhT < 5000 ? 1 : 0);
+        const lv = S.pwr && i.valid, gv = S.pwr && i.gsValid;
+        w("LV", lv ? 1 : 0); w("GV", gv ? 1 : 0);
+        w("LX", lv ? Math.round(apClamp(-i.locAng / C.locDot, -2.3, 2.3) * 50) / 50 : 0);
+        w("GY", gv ? Math.round(apClamp(i.gsDev / C.gsDot, -2.3, 2.3) * 50) / 50 : 0);
+        w("CRS", Math.round(S.crs) || 360); w("CRSU", S.crsUser ? 1 : 0);
+        w("ANG", e ? Math.round(e.gs * 10) : 0);
+        w("DIST", S.pwr && i.valid ? Math.max(1, Math.round(i.d * 10)) : 0);
+        w("MET", this.altMetric ? 1 : 0);
+        let rwn = 0;
+        if (e) { const m = /^(\d+)([LRCWAB]?)/.exec(e.name || ""); if (m) rwn = parseInt(m[1], 10) * 10 + Math.max(0, ["", "L", "R", "C", "W", "A", "B"].indexOf(m[2])); }
+        w("RWN", rwn);
+        const ic = e ? String(e.ap || "").toUpperCase() : "";
+        for (let k = 0; k < 4; k++) w("IC" + (k + 1), ic.charCodeAt(k) || 0);
+    }
+    _snwCmd(c, a) {
+        const S = this.sn;
+        this.log("СНПС okno: polecenie " + c + (a ? " (" + a + ")" : ""));
+        switch (c) {
+            case 1: this._snd("klapka"); this.snCover(); break;
+            case 2: if (S.cover) { this._snd(S.pwr ? "przelacznik" : "snps_on"); this.snPower(); } else { this._snd("klapka"); this.snCover(); } break;
+            case 4: this._snd("przycisk"); this.snApOk(); break;
+            case 5: this._snd("przycisk"); this.snApNext(); break;
+            case 6: this._snd("przycisk"); this.snApproach(); break;
+            case 7: this._snd("przelacznik"); S.autoSel = !S.autoSel; this.log("СНПС: tryb " + (S.autoSel ? "АВТ" : "ВПР")); this.updateUI(); break;
+            case 8: this._snd("przycisk"); this._lampTestSet(true); break;
+            case 9: this._lampTestSet(false); break;
+            case 10: if (a >= 1 && a <= 360) { S.crs = Math.round(a); S.crsUser = true; S.crsDirty = true; S.listNext = 0; this.updateUI(); } break;
+        }
+    }
+
+    // dla okna ПА-3: pas wybrany przez СНПС (L:AP28_SN_*)
+    _snExport() {
+        const S = this.sn, now = performance.now();
+        if (now < (this._snExpT || 0)) return;
+        this._snExpT = now + 1000;
+        const e = S.pwr && !S.bootEnd ? S.rw : null;
+        const w = (n, v) => { try { SimVar.SetSimVarValue("L:" + n, "number", v); } catch (x) { } };
+        w("AP28_SN_ON", e ? 1 : 0);
+        if (e) { w("AP28_SN_LAT", e.lat); w("AP28_SN_LON", e.lon); w("AP28_SN_HDG", e.hdg); w("AP28_SN_LEN", e.lenNm); w("AP28_SN_ARM", S.arm ? 1 : 0); }
+    }
+
+    // przechyl na podejsciu (null = СНПС nie prowadzi)
+    _snBank() {
+        const S = this.sn, C = AP_CONFIG.sn, N = AP_CONFIG.nav, e = S.rw, i = S.i;
+        if (!S.arm || !e || !i || !isFinite(i.along)) return null;
+        let cmd;
+        if (!S.locCap) {
+            // jeszcze nie na osi: najpierw tam, skad da sie wejsc na os pasa daleko od progu (jak wektorowanie na ILS)
+            const tg = Math.tan(apRad(e.gs)), tj = Math.tan(apRad(C.joinAng));
+            const need = Math.max(C.joinMinNm, (i.hThr / 6076.12) / tg + C.joinExtraNm);   // tu sciezka jest na naszej wysokosci
+            const join = i.along - Math.abs(i.xtk) / tj;                                     // gdzie wejdziemy na os pod katem joinAng
+            if (S.route !== "INT") {
+                if (join >= need) S.route = "INT";
+                else {
+                    if (!S.ipPt) { S.ipNm = need + C.ipExtraNm; S.ipPt = apDest(e, apWrap360(e.hdg + 180), S.ipNm); this.log("СНПС: punkt wejscia " + S.ipNm.toFixed(1) + " NM przed progiem"); }
+                    if (apDst(S.ipPt, this.cur) < C.ipReachNm) S.route = "INT";
+                    else { S.route = "IP"; cmd = apBrg(this.cur, S.ipPt); }
+                }
+                if (S.route === "INT") this.log("СНПС: przechwytywanie osi pasa (wejscie ~" + Math.max(0, join).toFixed(1) + " NM)");
+            }
+            if (S.route === "INT") cmd = apWrap360(e.hdg - apClamp(i.xtk * N.interceptGain, -C.joinAng, C.joinAng));
+        } else {
+            if (!i.valid) return null;
+            // na osi: jak KRM - poprawka z odchylenia katowego (im blizej pasa, tym czulej) + z odleglosci w NM
+            const corr = apClamp(i.locAng * C.locGain + i.xtk * N.interceptGain * 0.3, -N.maxIntercept, N.maxIntercept);
+            cmd = apWrap360(e.hdg - corr);
+        }
+        this._lastNavCmd = cmd;
+        const lim = S.flare ? 4 : Math.min(this._bankLimit(), C.maxBank);
+        return apClamp(apWrap180(cmd - this.cur.track) * AP_CONFIG.hdgBankGain, -lim, lim);
+    }
+    // predkosc pionowa na sciezce (null = nie zlapana)
+    _snVS() {
+        const S = this.sn, C = AP_CONFIG.sn;
+        if (!S.arm || !S.gsCap || !S.i.gsValid) return null;
+        const nom = -Math.max(40, this.cur.gs) * 101.27 * S.i.tg;               // [fpm] dla predkosci wzgl. ziemi
+        if (S.flare) {                                  // wyrownanie: VS = -h/tau, tau dobrane tak, by zaczac plynnie od biezacego opadania
+            if (!S.flareTau) S.flareTau = Math.max(2.5, C.flareFt * 60 / Math.max(200, -nom));
+            const hp = Math.max(0, S.ra + this.cur.vs * (C.flareLead || 0) / 60);
+            return apClamp(-hp * 60 / S.flareTau, nom, C.flareMinVs);
+        }
+        return apClamp(nom - apClamp(S.i.devFt * C.gsGain, -C.gsCorr, C.gsCorr), -2500, 500);
+    }
+
+    // koniec ZAHODU: AP zostaje, trzyma biezacy kurs i predkosc pionowa (zeby nie wracal do starej wysokosci)
+    _snStop(msg) {
+        const S = this.sn;
+        if (!S.arm) return;
+        const hadGs = S.gsCap;
+        S.arm = false; S.locCap = false; S.gsCap = false;
+        if (this.apOn) {
+            try { this.readStates(); } catch (e) { }
+            this.latMode = "HDG"; this.setHdgTarget(this.cur.hdg);
+            if (hadGs) { this.vertMode = "VS"; this.vsTarget = apClamp(Math.round(this.cur.vs / 100) * 100, -AP_CONFIG.maxSelVS, AP_CONFIG.maxSelVS); }
+        }
+        if (msg) this._setNotice(msg, 4000);
+        this.log("СНПС: ЗАХОД wylaczony" + (msg ? " (" + msg + ")" : ""));
+    }
+    // inny tryb AP wybrany recznie: ZAHOD przestaje prowadzic (tryb ustawia przycisk)
+    _snCancel(axis) {
+        const S = this.sn;
+        if (!S || !S.arm) return;
+        S.arm = false; S.locCap = false; S.gsCap = false;
+        // tryby СНПС zamieniamy na zwykle; os, ktorej przycisk wcisnieto, ustawi sam przycisk
+        try { this.readStates(); } catch (e) { }
+        if (this.latMode === "SN") {
+            if (axis === "lat") this.latMode = "LVL";
+            else { this.latMode = "HDG"; this.setHdgTarget(this.cur.hdg); }
+        }
+        if (this.vertMode === "SN") {
+            if (axis === "vert") this.vertMode = "LVL";
+            else { this.vertMode = "VS"; this.vsTarget = apClamp(Math.round(this.cur.vs / 100) * 100, -AP_CONFIG.maxSelVS, AP_CONFIG.maxSelVS); }
+        }
+        this.log("СНПС: ЗАХОД anulowany innym trybem");
+    }
+
+    // ----- informator glosowy: kolejka (jeden komunikat naraz, stare przepadaja) -----
+    _say(name) {
+        const V = AP_CONFIG.voice;
+        if (!V || !V.enabled || !AP_CONFIG.sound || !AP_CONFIG.sound.enabled) return;
+        if (!this._sayQ) this._sayQ = [];
+        if (this._sayQ.some((q) => q.n === name)) return;
+        this._sayQ.push({ n: name, t: performance.now() });
+        this.log("РИ: " + name);
+    }
+    _sayTick() {
+        const Q = this._sayQ, now = performance.now();
+        if (!Q || !Q.length || now < (this._sayBusy || 0)) return;
+        let q = Q.shift();
+        while (q && now - q.t > 4000 && Q.length) q = Q.shift();
+        if (!q || now - q.t > 4000) return;
+        this._snd(q.n);
+        this._sayBusy = now + ((AP_SND_DUR[q.n] || 1.2) * 1000) + 150;
+    }
+    // zdarzenia informatora niezalezne od СНПС: predkosc, odliczanie wysokosci
+    _voiceTick() {
+        const V = AP_CONFIG.voice, c = this.cur, now = performance.now();
+        if (!V || !V.enabled) return;
+        const ra = this._sv("RADIO HEIGHT", "feet") || this._sv("PLANE ALT ABOVE GROUND", "feet") || 0;
+        const raM = ra * 0.3048;
+        if (!c.onGround && raM > 15) {
+            const ias = this._ias();
+            const bad = ias > 20 && (ias < V.speedLowKt || ias > V.speedHighKt);
+            if (bad && now >= (this._spdNext || 0)) { this._say("v_speed"); this._spdNext = now + V.speedRepeat * 1000; }
+            if (!bad) this._spdNext = Math.min(this._spdNext || 0, now + 1500);
+        }
+        const S = this.sn;
+        if (S && S.pwr && S.rw && S.i.d < 6 && !c.onGround && !this._lampTest) {
+            const p = S.raPrev;
+            (V.countdownM || []).forEach((h) => { if (p > h && raM <= h && p - raM < 20) this._say("v_" + h); });
+        }
+        S.raPrev = raM > 60 ? 1e9 : raM;
+    }
+
+    // ----- dzwieki -----
+    _snd(name) {
+        const C = AP_CONFIG.sound;
+        if (!C || !C.enabled) return;
+        if (C.mode !== "plugin" && this._sndPanelOk !== false) { this._sndPanel(name, C); return; }
+        if (C.mode !== "panel") this._sndPlugin(name);
+    }
+    _sndPanel(name, C) {
+        let done = false;
+        const fail = (why) => {
+            if (done) return; done = true;
+            if (this._sndPanelOk === true) { this.log("dzwiek " + name + ": " + why, "WARN"); return; }   // dzialalo wczesniej - tylko ten raz
+            this._sndPanelOk = false;
+            this.log("dzwiek: panel nie gra (" + why + ") - dalej przez wtyczke", "WARN");
+            if (C.mode !== "panel") this._sndPlugin(name);
+        };
+        try {
+            if (typeof Audio === "undefined") { fail("brak Audio"); return; }
+            const a = new Audio(C.base + name + ".wav");
+            a.volume = apClamp(C.volume, 0, 1);
+            a.addEventListener("playing", () => { if (done) return; done = true; if (this._sndPanelOk !== true) { this._sndPanelOk = true; this.log("dzwiek: panel gra (" + name + ")"); } });
+            a.addEventListener("error", () => fail("blad pliku/kodeka" + (a.error ? " " + a.error.code : "")));
+            const p = a.play();
+            if (p && p.catch) p.catch((e) => fail("play(): " + (e && e.name || e)));
+            setTimeout(() => { if (!done) { try { a.pause(); } catch (e) { } fail("brak odtwarzania po 1 s"); } }, 1000);
+        } catch (e) { fail("wyjatek " + e); }
+    }
+    _sndPlugin(name) {
+        try {
+            const cb = "__ap28snd" + (this._sndN = (this._sndN || 0) + 1);
+            const sc = document.createElement("script");
+            const clean = () => { try { delete window[cb]; sc.remove(); } catch (e) { } };
+            const tm = setTimeout(() => { clean(); if (!this._sndPlugWarn) { this._sndPlugWarn = true; this.log("dzwiek: wtyczka nie odpowiada (czy jest uruchomiona?)", "WARN"); } }, 2000);
+            window[cb] = (o) => { clearTimeout(tm); clean(); if (!this._sndPlugOk) { this._sndPlugOk = true; this.log("dzwiek: gra wtyczka (" + name + ", " + (o && o.snd) + ")"); } };
+            sc.onerror = () => { clearTimeout(tm); clean(); if (!this._sndPlugWarn) { this._sndPlugWarn = true; this.log("dzwiek: brak wtyczki", "WARN"); } };
+            sc.src = AP_CONFIG.link.url + "?snd=" + encodeURIComponent(name) + "&cb=" + cb + "&t=" + Date.now();
+            document.head.appendChild(sc);
+        } catch (e) { this.log("dzwiek: " + e, "WARN"); }
+    }
+
+    // ----- przyciski -----
+    snCover() {
+        const S = this.sn;
+        S.cover = !S.cover;
+        this.updateUI();
+    }
+    snPower(on) {
+        const S = this.sn;
+        if (on === undefined) on = !S.pwr;
+        if (on && !S.cover) return;
+        S.pwr = on;
+        if (on) { S.next = 0; S.listNext = 0; S.rw = null; S.dhT = 0; S.bootEnd = performance.now() + (AP_CONFIG.sn.bootMs || 0); this._setNotice(AP_LABELS.snBoot, AP_CONFIG.sn.bootMs || 1000); }
+        else { this._snStop(); S.rw = null; S.list = []; S.bootEnd = 0; S.apSel = null; S.apPrev = null; S.rwSel = null; }
+        this.log("СНПС: " + (on ? "WLACZONY" : "WYLACZONY"));
+        this.updateUI();
+    }
+    snApproach() {
+        const S = this.sn;
+        if (S.arm) { this._snStop(AP_LABELS.snAppOff); this.updateUI(); return; }
+        if (!S.pwr) { this._setNotice(AP_LABELS.snNeedPwr); this.updateUI(); return; }
+        if (S.bootEnd) { this._setNotice(AP_LABELS.snBoot); this.updateUI(); return; }
+        if (!S.rw || !S.i || !(S.i.d < AP_CONFIG.sn.maxNm + 5)) { this._setNotice(AP_LABELS.snNoRwy); this.updateUI(); return; }
+        if (!this.apOn) { this._setNotice(AP_LABELS.snNeedAp); this.updateUI(); return; }
+        S.arm = true; S.locCap = false; S.gsCap = false; S.route = null; S.ipPt = null;
+        this.latMode = "SN";                           // boczny kanal prowadzi СНПС: КУРС / НВУ / ГОРИЗОНТ gasna
+        this.log("СНПС: ЗАХОД na " + S.rw.ap + " " + S.rw.name);
+        this.updateUI();
+    }
+    // ----- wyglad -----
+    _snMount(root) {
+        const q = (k) => root.querySelector('[data-k="' + k + '"]');
+        const E = { box: q("snBox") };
+        if (!E.box) { this.snEl = null; return; }
+        ["snHitTop", "snHitBtn", "snCovC", "snCovO", "snLevUp", "snLevDn", "snApp", "snRwInc", "snRwDec", "snRwCtr", "snRwCap", "snNix", "snLampLens", "snLampGlow", "snApBtn", "snApOk", "snLandV", "snLandA", "snLandHit", "snLampTest", "snDistCtr", "snDistCap",
+            "snAngCtr", "snSpdCtr", "snSpdCap", "snSpdInc", "snSpdDec", "snLReady", "snLLoc", "snLGs", "snLDh", "snBarL", "snBarG", "snFlagL", "snFlagG"].forEach((k) => { E[k] = q(k); });
+        const on = (el, fn) => { if (el) el.addEventListener("click", fn); };
+        on(E.snHitTop, () => { this._snd("klapka"); this.snCover(); });
+        on(E.snHitBtn, () => {
+            if (this.sn.cover) { this._snd(this.sn.pwr ? "przelacznik" : "snps_on"); this.snPower(); }
+            else { this._snd("klapka"); this.snCover(); }
+        });
+        on(E.snApp, () => { this._snd("przycisk"); this.snApproach(); });
+        on(E.snRwInc, () => { this._snd("przycisk"); this.snRwStep(1); });
+        on(E.snRwDec, () => { this._snd("przycisk"); this.snRwStep(-1); });
+        on(E.snApBtn, () => { this._snd("przycisk"); this.snApNext(); });
+        on(E.snApOk, () => { this._snd("przycisk"); this.snApOk(); });
+        on(E.snLandHit, () => { this._snd("przelacznik"); this.sn.autoSel = !this.sn.autoSel; this.log("СНПС: tryb " + (this.sn.autoSel ? "АВТ" : "ВПР")); this.updateUI(); });
+        // КОНТРОЛЬ ЛАМП: trzymane = wszystkie lampki swieca
+        if (E.snLampTest) {
+            const up = () => { if (this._lampTest) this._lampTestSet(false); };
+            E.snLampTest.addEventListener("mousedown", (ev) => { if (ev && ev.button) return; this._snd("przycisk"); this._lampTestSet(true); });
+            E.snLampTest.addEventListener("mouseup", up);
+            E.snLampTest.addEventListener("mouseleave", up);
+        }
+        if (E.snRwCtr) E.snRwCtr.addEventListener("wheel", (ev) => this.snRwStep(ev.deltaY < 0 ? 1 : -1));
+        on(E.snSpdInc, () => { this._snd("przycisk"); this._snSpd(1); });
+        on(E.snSpdDec, () => { this._snd("przycisk"); this._snSpd(-1); });
+        if (E.snSpdCtr) E.snSpdCtr.addEventListener("wheel", (ev) => this._snSpd(ev.deltaY < 0 ? 1 : -1));
+        this.snEl = E;
+        this._snKpp = { l: null, g: null, fl: null, fg: null };
+    }
+
+    _snDrawKpp() {
+        const E = this.snEl, S = this.sn, C = AP_CONFIG.sn, K = this._snKpp;
+        if (!E || !E.snBarL || this._lampTest) return;
+        const sc = 15;                                                          // px na kropke
+        const lv = S.pwr && S.i.valid, gv = S.pwr && S.i.gsValid;
+        const lx = lv ? apClamp(-S.i.locAng / C.locDot, -2.3, 2.3) * sc : 0;
+        const gy = gv ? apClamp(S.i.gsDev / C.gsDot, -2.3, 2.3) * sc : 0;
+        const ls = lx.toFixed(1), gs = gy.toFixed(1);
+        if (K.l !== ls) { K.l = ls; E.snBarL.setAttribute("transform", "translate(" + ls + " 0)"); }
+        if (K.g !== gs) { K.g = gs; E.snBarG.setAttribute("transform", "translate(0 " + gs + ")"); }
+        if (K.fl !== lv) { K.fl = lv; E.snFlagL.style.display = lv ? "none" : ""; E.snBarL.setAttribute("opacity", lv ? "1" : ".35"); }
+        if (K.fg !== gv) { K.fg = gv; E.snFlagG.style.display = gv ? "none" : ""; E.snBarG.setAttribute("opacity", gv ? "1" : ".35"); }
+    }
+
+    // bebenek СКОР: zadana predkosc АТ (bez АТ pokazuje predkosc przyrzadowa, przyciemniony)
+    _snSpd(dir) {
+        if (!this.atOn) { this._setNotice(AP_LABELS.snAtOffSpd, 2000); this.updateUI(); return; }
+        this.adjustSpd(dir);
+    }
+
+    _updateSnUI() {
+        const E = this.snEl, S = this.sn, L = AP_LABELS, now = performance.now();
+        if (!E) return;
+        if (E.snSpdCtr) {
+            let ias = this.cur && isFinite(this.cur.ias) ? this.cur.ias : 0;
+            try { if (!this.atOn) ias = this._ias(); } catch (e) { }
+            this._renderCounter(E.snSpdCtr, this._spdDisp(this.atOn ? this.atTarget : ias), 3, !this.atOn);
+            const sc = L.snSpd + ", " + (this.altMetric ? L.kmh : L.kt);
+            if (E.snSpdCap._t !== sc) { E.snSpdCap._t = sc; E.snSpdCap.innerHTML = apRu(sc); }
+        }
+        const act = (el, v) => { if (!el) return; if (v) el.setAttribute("activated", "true"); else el.removeAttribute("activated"); };
+        const blink = Math.floor(now / 400) % 2 === 0;
+        E.snCovC.style.display = S.cover ? "none" : "";
+        E.snCovO.style.display = S.cover ? "" : "none";
+        E.snHitTop.style.height = S.cover ? "28px" : "130px";
+        E.snHitBtn.style.display = S.cover ? "" : "none";
+        E.snLevUp.style.display = S.pwr ? "" : "none";
+        E.snLevDn.style.display = S.pwr ? "none" : "";
+        const ready = S.pwr && !!S.rw && S.i.valid;
+        act(E.snLReady, ready);
+        act(E.snLLoc, S.arm && (S.locCap || blink));
+        act(E.snLGs, S.arm && (S.gsCap || (S.locCap && blink)));
+        const dh = S.pwr && S.i.valid && S.i.along > 0 && S.i.hThr <= AP_CONFIG.sn.dhM * 3.28084;
+        act(E.snLDh, dh && (now - S.dhT > 5000 || blink));
+        act(E.snApp, S.arm);
+        E.snLandV.style.display = S.autoSel ? "none" : "";
+        E.snLandA.style.display = S.autoSel ? "" : "none";
+        const rw = S.pwr && S.rw ? S.rw.name : "";
+        const boot = S.pwr && S.bootEnd > 0;
+        const lampOn = S.pwr && (!boot || Math.floor(now / 300) % 2 === 0);
+        if (E._lamp !== lampOn) { E._lamp = lampOn; E.snLampLens.setAttribute("fill", lampOn ? "url(#snLOn)" : "url(#snLOff)"); E.snLampGlow.style.display = lampOn ? "" : "none"; }
+        this._renderCells(E.snRwCtr, (rw || "--").padEnd(3, " ").slice(0, 3), !rw || !S.rwSel, false);
+        // lampy nixie: ICAO lotniska, na ktore system sie namierzyl
+        // podczas rozruchu lampy nixie przelatuja przez katody (test), potem ICAO
+        let ic = (S.pwr && S.rw ? S.rw.ap : "").toUpperCase().slice(0, 4);
+        if (S.apPrev !== null && now >= S.apPrevT) S.apPrev = null;
+        if (S.pwr && S.apPrev !== null) ic = Math.floor(now / 350) % 2 === 0 ? (S.apPrev === "*" ? L.snAuto : S.apPrev.toUpperCase().slice(0, 4)) : "";   // podglad: miga
+        if (boot) { const A = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"; ic = ""; for (let k = 0; k < 4; k++) ic += A[Math.floor(Math.random() * A.length)]; }
+        if (E.snNix._t !== ic) {
+            E.snNix._t = ic;
+            let h = "";
+            for (let k = 0; k < 4; k++) { const ch = ic[k] || ""; h += '<span class="sn-tube' + (ch ? ' sn-lit' : '') + '"><span class="sn-nch">' + apRu(ch || "8") + '</span></span>'; }
+            E.snNix.innerHTML = h;
+        }
+        const capRw = L.snAero + (S.pwr ? " · " + (S.apSel ? L.snManual : L.snAuto) : "");
+        if (E.snRwCap._t !== capRw) { E.snRwCap._t = capRw; E.snRwCap.innerHTML = apRu(capRw); }
+        const km = this.altMetric, dist = S.pwr && S.i.valid ? S.i.d * (km ? 1.852 : 1) : null;
+        this._renderCells(E.snDistCtr, dist === null ? "--.-" : (dist >= 99.95 ? "99.9" : dist.toFixed(1)).padStart(4, "0"), dist === null, false);
+        let dc = km ? L.snDistKm : L.snDistNm;
+        if (E.snDistCap.getAttribute("data-br")) dc = dc.replace(", ", ",\n");
+        if (E.snDistCap._t !== dc) { E.snDistCap._t = dc; E.snDistCap.innerHTML = apRu(dc); }
+        this._renderCells(E.snAngCtr, S.pwr && S.rw ? S.rw.gs.toFixed(1) : "-.-", !(S.pwr && S.rw), false);
+    }
+
+    // ----- КОНТРОЛЬ ЛАМП -----
+    _lampTestSet(on) {
+        const root = this.skinRoot || this;
+        if (on) {
+            if (this._lampTest) return;
+            this._lampTest = true;
+            this._ltSaved = [];
+            root.querySelectorAll(AP_LAMP_SEL).forEach((el) => this._ltSaved.push([el, el.getAttribute("activated")]));
+            clearTimeout(this._ltTimer);
+            this._ltTimer = setTimeout(() => this._lampTestSet(false), 15000);
+        } else {
+            if (!this._lampTest) return;
+            this._lampTest = false;
+            clearTimeout(this._ltTimer);
+            (this._ltSaved || []).forEach(([el, v]) => { if (v === null) el.removeAttribute("activated"); else el.setAttribute("activated", v); });
+            this._ltSaved = null;
+            if (this.snEl) { this.snEl._lamp = null; this.snEl.snNix._t = null; }
+            if (this._snKpp) { this._snKpp.fl = null; this._snKpp.fg = null; }
+        }
+        this.updateUI();
+    }
+    _lampTestApply() {
+        if (!this._lampTest) return;
+        const root = this.skinRoot || this, E = this.snEl;
+        root.querySelectorAll(AP_LAMP_SEL).forEach((el) => el.setAttribute("activated", "true"));
+        if (E) {
+            E.snLampLens.setAttribute("fill", "url(#snLOn)"); E.snLampGlow.style.display = ""; E._lamp = null;
+            if (E.snNix._t !== "#8888") {
+                E.snNix._t = "#8888";
+                let h = ""; for (let k = 0; k < 4; k++) h += '<span class="sn-tube sn-lit"><span class="sn-nch">' + apRu("8") + '</span></span>';
+                E.snNix.innerHTML = h;
+            }
+            E.snFlagL.style.display = ""; E.snFlagG.style.display = "";
+            if (this._snKpp) { this._snKpp.fl = null; this._snKpp.fg = null; }
+        }
+    }
+
+    // tekst na wyswietlaczu, gdy ЗАХОД prowadzi
+    _snText(prefix) {
+        const S = this.sn, L = AP_LABELS;
+        if (!this.apOn || !S.arm || !S.rw) return null;
+        const d = S.i.valid ? (this.altMetric ? (S.i.d * 1.852).toFixed(1) + " КМ" : S.i.d.toFixed(1) + " МИЛЬ") : "";
+        return [prefix + "  " + L.snApp + "  " + (S.locCap ? L.snLoc : "") + (S.gsCap ? " " + L.snGs : ""),
+            L.snRwy + " " + S.rw.name + "  " + S.rw.ap + "  " + d];
     }
 
     // ===== AT: automat ciagu (utrzymanie predkosci przyrzadowej) =====
@@ -2980,7 +3998,7 @@ class AP28Panel extends AP28_BASE {
         this.atOn = true;
         this.atPID.reset();
         const thr = (this._sv("GENERAL ENG THROTTLE LEVER POSITION:1", "percent") || 0) / 100;
-        this._at = { t: null, thr: apClamp(thr, 0, 1), base: apClamp(thr, 0, 1), w1: thr, w2: thr, acc: 0, fol: {} };
+        this._at = { t: null, thr: apClamp(thr, 0, 1), base: apClamp(thr, 0, 1), w1: thr, w2: thr, acc: 0, fol: {}, hist: [], hw: {} };
         this.log("AT ON " + this.atTarget + " kt, dzwignia " + Math.round(thr * 100) + "%");
         this.updateUI();
     }
@@ -3011,24 +4029,43 @@ class AP28Panel extends AP28_BASE {
         if (dt <= 0) return;
         A.t = now;
         if (dt > 0.5) { this.atPID.reset(); return; }
-        // pilot ruszyl dzwignia -> AT odlacza sie. AT co klatke wpisuje swoje ustawienie, wiec dzwignia, ktora
-        // "idzie za AT", stoi tam, gdzie AT ja ostatnio (albo klatke wczesniej) postawil. Gdy nagle stoi gdzie
-        // indziej - ruszyl ja pilot (os, klawisze, mysz). Dzwignie, ktore nie ida za AT, sa pomijane.
+        // pilot ruszyl dzwignia -> AT odlacza sie. Tylko ruch PRZEPUSTNICY - stery (wolant, pedaly) nie maja tu wplywu.
+        // AT co klatke wpisuje swoje ustawienie, a gra wykonuje je z opoznieniem kilku klatek. Dlatego dzwignia jest
+        // "AT-owa", dopoki stoi w zakresie ustawien AT z ostatnich ~0.8 s (wczesniej, gdy AT szybko przestawial gaz
+        // - np. po zmianie predkosci od wolantu - to opoznienie bylo brane za ruch pilota).
+        // Fizyczna os (joystick, przepustnica) potrafi drgnac i "przeskoczyc" na swoje polozenie - to jeszcze nie ruch:
+        // AT odlacza sie, gdy os naprawde jedzie (odjechala o >= overrideMove od miejsca, w ktorym pierwszy raz wyskoczyla) albo przy klawiszach F2/F3.
         const nEng = Math.max(1, C.engines);
-        let d = 0, lever = 0;
+        const H = A.hist || (A.hist = []), HW = A.hw || (A.hw = {});
+        while (H.length && now - H[0].t > (C.overrideHist || 0.8)) H.shift();
+        let lo = Math.min(A.w1, A.w2), hi = Math.max(A.w1, A.w2);
+        for (let k = 0; k < H.length; k++) { if (H[k].v < lo) lo = H[k].v; if (H[k].v > hi) hi = H[k].v; }
+        let d = 0, lever = 0, moved = false, why = "";
         for (let i = 1; i <= nEng; i++) {
             const l = (this._sv("GENERAL ENG THROTTLE LEVER POSITION:" + i, "percent") || 0) / 100;
             if (i === 1) lever = l;
-            const e1 = l - A.w1, e2 = l - A.w2;
-            const di = Math.abs(e1) < Math.abs(e2) ? e1 : e2;
-            const follows = A.fol[i] === true;             // poprzednio dzwignia byla tam, gdzie AT (1. odczyt tylko uczy)
-            A.fol[i] = Math.abs(di) < 0.01;
-            if (follows && Math.abs(di) > Math.abs(d)) d = di;
+            const di = l < lo - 0.01 ? l - lo : (l > hi + 0.01 ? l - hi : 0);
+            const follows = A.fol[i] === true;             // poprzednio dzwignia szla za AT (1. odczyt tylko uczy)
+            if (di === 0) A.fol[i] = true; else if (!follows) A.fol[i] = false;
+            if (!follows || di === 0) {
+                if (HW[i] !== undefined && now - HW[i].t > 3) delete HW[i];
+                continue;
+            }
+            // dzwignia wyskoczyla z ustawien AT: pierwsze takie polozenie to punkt odniesienia (tam stoi os);
+            // gdy kolejne odczyty odjada od niego o >= overrideMove - os naprawde sie rusza = pilot
+            const w = HW[i];
+            if (!w) HW[i] = { v: l, t: now };
+            else {
+                w.t = now;
+                if (Math.abs(l - w.v) >= (C.overrideMove || 0.03)) { moved = true; why = "os " + Math.round(w.v * 100) + "->" + Math.round(l * 100) + "%"; }
+            }
+            if (Math.abs(di) < 0.03 && Math.abs(di) > Math.abs(d)) d = di;   // male kroki (klawisze) - do sumy
         }
         if (C.pilotOverride !== false) {
-            if (Math.abs(d) > 0.008) A.acc += d; else A.acc *= 0.85;
-            if (Math.abs(d) > C.overrideDiff || Math.abs(A.acc) > (C.overrideSum || 0.06)) {
-                this.log("AT: pilot ruszyl przepustnica (dzwignia " + Math.round(lever * 100) + "%, AT " + Math.round(A.w1 * 100) + "%)");
+            if (d !== 0) A.acc += d; else A.acc *= 0.85;
+            if (!moved && Math.abs(A.acc) > (C.overrideSum || 0.05)) { moved = true; why = "klawisze, suma " + Math.round(A.acc * 100) + "%"; }
+            if (moved) {
+                this.log("AT: pilot ruszyl przepustnica (" + why + ", dzwignia " + Math.round(lever * 100) + "%, AT " + Math.round(A.w1 * 100) + "%)");
                 this._atOff(AP_LABELS.atPilot);
                 if (this.apOn && AP_CONFIG.throttleDisconnectsAP !== false) this.disengage(AP_LABELS.apThr);
                 return;
@@ -3047,10 +4084,12 @@ class AP28Panel extends AP28_BASE {
             A.base = want - out;                       // bez narastania calki, gdy ogranicznik trzyma przepustnice
             if (!A.limLog || now - A.limLog > 10) { A.limLog = now; this.log("AT ОГР: " + L.what + " " + L.val.toFixed(1) + "% (limit " + L.lim + "%)"); }
         }
+        if (this.sn && this.sn.retard) { want = 0; slew = AP_CONFIG.sn.retardRate || 0.3; A.base = -out; }   // СНПС АВТ: gaz na zero
         A.thr = apClamp(apSlew(A.thr, want, slew * dt), 0, 1);
         const v = Math.round(A.thr * 16383);
         for (let i = 1; i <= nEng; i++) SimVar.SetSimVarValue("K:THROTTLE" + i + "_SET", "number", v);
         A.w2 = A.w1; A.w1 = v / 16383;                 // co AT wpisal (do wykrywania ruchu pilota)
+        H.push({ t: now, v: A.w1 });
         if (this._logOn() && (++this._atDbg || (this._atDbg = 1)) % 20 === 0)
             this.log("AT ias " + ias.toFixed(1) + "/" + this.atTarget + " thr " + Math.round(A.thr * 100) + "% lever " + Math.round(lever * 100) + "% | " + L.txt);
     }
@@ -3438,6 +4477,7 @@ class AP28Panel extends AP28_BASE {
         const root = R.srcbtn && R.srcbtn.closest ? R.srcbtn.closest(".sv-root") : null;
         R.bankSel = root ? root.querySelector('[data-k="bankSel"]') : null;
         R.bankSelPtr = root ? root.querySelector('[data-k="bankSelPtr"]') : null;
+        R.bankRots = root ? root.querySelectorAll('[data-bkr]') : [];
         R.bankDigits = R.bankSel ? R.bankSel.querySelectorAll(".sv-bsd") : [];
         on(R.bankSel, "click", (ev) => {
             const d = ev.target && ev.target.closest ? ev.target.closest(".sv-bsd") : null;
@@ -3454,9 +4494,11 @@ class AP28Panel extends AP28_BASE {
         this._bankUiVal = this.bankSel;
         const vals = AP_CONFIG.bankSel, n = vals.length, i = Math.max(0, vals.indexOf(this.bankSel));
         const a = -64 + 128 * i / Math.max(1, n - 1);
-        const old = R.bankSelPtr.getAttribute("transform") || "";
-        const m = old.match(/rotate\(\s*[-0-9.]+\s+([-0-9.]+)\s+([-0-9.]+)\s*\)/);
-        if (m) R.bankSelPtr.setAttribute("transform", "rotate(" + a.toFixed(1) + " " + m[1] + " " + m[2] + ")");
+        for (let k = 0; k < R.bankRots.length; k++) {
+            const el = R.bankRots[k], old = el.getAttribute("transform") || "";
+            const m = old.match(/rotate\(\s*[-0-9.]+\s+([-0-9.]+)\s+([-0-9.]+)\s*\)/);
+            if (m) el.setAttribute("transform", "rotate(" + a.toFixed(1) + " " + m[1] + " " + m[2] + ")");
+        }
         for (let k = 0; k < R.bankDigits.length; k++) {
             const on = parseFloat(R.bankDigits[k].getAttribute("data-bank")) === this.bankSel;
             if (on) R.bankDigits[k].classList.add("sv-on"); else R.bankDigits[k].classList.remove("sv-on");
@@ -3707,6 +4749,7 @@ class AP28Panel extends AP28_BASE {
     }
 
     onVSClicked() {
+        this._snCancel("vert");
         if (!this.apOn) {
             if (!this.engage()) { this.updateUI(); return; }
             this.latMode = "LVL";
@@ -3823,6 +4866,7 @@ class AP28Panel extends AP28_BASE {
         try {
             if (this.skinKind === "an28") {
                 this._updateAn28();
+                try { this._updateSnUI(); this._lampTestApply(); } catch (e) { }
                 this._fitSkin();
                 return;
             }
@@ -3830,6 +4874,7 @@ class AP28Panel extends AP28_BASE {
             this._updateTextRU();
             this.updateButtons();
             this.updateHdgIndicator();
+            try { this._updateSnUI(); this._lampTestApply(); } catch (e) { }
             this._fitSkin();
         } catch (e) {
             this.log("Error in updateUI: " + e, "ERROR");
@@ -3852,6 +4897,8 @@ class AP28Panel extends AP28_BASE {
         } else {
             line1 = L.apOff;
         }
+        const snT = this._snText(L.apOn);
+        if (snT) { line1 = snT[0]; line2 = snT[1]; }
         if (performance.now() < this._noticeUntil) {
             const map = { "NA ZIEMI": L.ground, "NO ROUTE": L.noRoute, "ROUTE END": L.routeEnd, "LOADING": L.loading };
             line2 = map[this._notice] || L[this._notice] || this._notice;

@@ -4,5 +4,6 @@
     <TemporaryOutputDirectory>_Temp</TemporaryOutputDirectory>
     <Packages>
         <Package>PackageDefinitions\ap28-autopilot-panel.xml</Package>
+        <Package>PackageDefinitions\ap28-pa3-planshet.xml</Package>
     </Packages>
 </Project>

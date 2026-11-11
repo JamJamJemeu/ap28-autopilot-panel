@@ -8,6 +8,28 @@ Versions follow [Semantic Versioning](https://semver.org/). The ready-to-use pac
 
 ## English
 
+### 1.25.5 – 2026-11-11
+Versions 1.18.2–1.25.4 were test builds and were not published; this entry covers all of them. The ZIP now contains two mods: `ap28-autopilot-panel` 1.25.5 and the new `ap28-pa3-planshet` 1.0.4.
+#### Added
+- **СНПС «Курс-С» landing system** (fictional, Soviet style), built into the panel:
+  - Power switch under a red guard cover with a window showing its position, a yellow lamp above it and a ~3 s self-test after switching on.
+  - Nixie display with the airport ICAO code. **АЭР** previews nearby airports (closest first, then АВТ); **ВВОД** locks the airport.
+  - **ВПП** drum: choose the runway of that airport. It stays active after ВВОД and is locked only when ЗАХОД is pressed.
+  - **КПП** course/glide-path indicator, **ДАЛЬН** distance and **ГЛИС** glide-path angle drums, ГОТОВ / КУРС / ГЛИС / ВПР lamps.
+  - **ЗАХОД**: the autopilot flies to an entry point on the extended runway centreline (at least 6 NM out, further when higher), intercepts it at up to 30°, then captures the glide path from below. КУРС / НВУ go out when ЗАХОД takes over the lateral channel; ВЫСОТА / ВС stay on until the glide path is captured.
+  - **ПОСАДКА ВПР / АВТ** switch: disconnect at decision height (60 m), or automatic landing with flare by radio altitude, throttle retard and disconnect on touchdown.
+  - **СКОР** drum above the КПП: sets the autothrottle speed (dimmed, showing IAS, when АТ is off).
+  - **КОНТР. ЛАМП** lamp test button.
+  - The selected runway is exported as `L:AP28_SN_*` variables for ПА-3.
+- **РИ-65 voice callouts** in a Russian female voice: course and glide-path capture, decision height, 30/20/10/5 m, autopilot off, automatic landing, touchdown. Plus sounds for the guard cover, switches and buttons. Played by the panel, or by the companion plugin as a fallback.
+- **ПА-3 Планшет** (new separate mod `ap28-pa3-planshet`, its own toolbar window): a paper map with a pen drawing the flight track, airports and runways from the sim database, and the СНПС approach centreline.
+#### Changed
+- **Moving the throttle now disconnects only the autothrottle**; the autopilot keeps flying (`AP_CONFIG.throttleDisconnectsAP: false`). Moving the yoke no longer disconnects АТ.
+- The ОГР. КРЕНА knob is more realistic, and in the Soviet cockpit skin it sits next to the КУРС ЗАД. drum.
+- The Soviet cockpit skin is about 25% shorter, with the СНПС in one compact row.
+#### Fixed
+- Colours of some elements (ВЭМ dial, display, keys) changing in the sim after clicks: the panel uses far fewer colour gradients.
+
 ### 1.18.1 – 2026-11-10
 #### Fixed
 - In the Soviet cockpit skin, the ОГР. КРЕНА selector no longer sticks out of its frame. The field is taller, and the panel grows slightly at the bottom.
@@ -154,6 +176,28 @@ Versions follow [Semantic Versioning](https://semver.org/). The ready-to-use pac
 
 ## Polski
 
+### 1.25.5 – 2026-11-11
+Wersje 1.18.2–1.25.4 były testowe i nie zostały opublikowane; ten wpis obejmuje je wszystkie. ZIP zawiera teraz dwa mody: `ap28-autopilot-panel` 1.25.5 i nowy `ap28-pa3-planshet` 1.0.4.
+#### Dodane
+- **System lądowania СНПС «Курс-С»** (fikcyjny, w radzieckim stylu), wbudowany w panel:
+  - Włącznik pod czerwoną klapką z okienkiem pokazującym jego położenie, żółta lampka nad nim i ok. 3 s testu po włączeniu.
+  - Wyświetlacz nixie z kodem ICAO lotniska. **АЭР** przegląda pobliskie lotniska (od najbliższego, na końcu АВТ); **ВВОД** blokuje lotnisko.
+  - Bębenek **ВПП**: wybór pasa na tym lotnisku. Działa także po ВВОД, blokuje się dopiero po wciśnięciu ЗАХОД.
+  - Wskaźnik **КПП** (kurs i ścieżka), bębenki **ДАЛЬН** (odległość) i **ГЛИС** (kąt ścieżki), lampki ГОТОВ / КУРС / ГЛИС / ВПР.
+  - **ЗАХОД**: autopilot leci na punkt wejścia na przedłużeniu osi pasa (co najmniej 6 NM, dalej, gdy leci wyżej), przechwytuje oś pod kątem do 30°, potem łapie ścieżkę od dołu. КУРС / НВУ gasną, gdy ЗАХОД przejmuje kanał boczny; ВЫСОТА / ВС działają do złapania ścieżki.
+  - Przełącznik **ПОСАДКА ВПР / АВТ**: wyłączenie na wysokości decyzji (60 m) albo automatyczne lądowanie z wyrównaniem wg wysokości radiowej, zdjęciem gazu i wyłączeniem po przyziemieniu.
+  - Bębenek **СКОР** nad КПП: zadana prędkość automatu ciągu (przyciemniony, z prędkością przyrządową, gdy АТ jest wyłączony).
+  - Przycisk **КОНТР. ЛАМП** (test lampek).
+  - Wybrany pas trafia do zmiennych `L:AP28_SN_*` dla ПА-3.
+- **Informator głosowy РИ-65** (rosyjski kobiecy głos): złapanie kursu i ścieżki, wysokość decyzji, 30/20/10/5 m, wyłączenie AP, automatyczne lądowanie, przyziemienie. Do tego dźwięki klapki, przełączników i przycisków. Odtwarza je panel, a zapasowo wtyczka stream decka.
+- **ПА-3 Планшет** (nowy osobny mod `ap28-pa3-planshet`, własne okno): papierowa mapa z rysikiem, który kreśli ślad lotu, lotniska i pasy z bazy gry oraz oś podejścia СНПС.
+#### Zmienione
+- **Ruch przepustnicy wyłącza teraz tylko automat ciągu**, autopilot leci dalej (`AP_CONFIG.throttleDisconnectsAP: false`). Ruch sterownicą nie wyłącza już АТ.
+- Gałka ОГР. КРЕНА jest bardziej realistyczna, a w radzieckim pulpicie stoi obok bębenka КУРС ЗАД.
+- Radziecki pulpit jest o ok. 25% niższy, СНПС mieści się w jednym zwartym rzędzie.
+#### Poprawione
+- Zmiana kolorów niektórych elementów (tarcza ВЭМ, wyświetlacz, klawisze) w grze po kliknięciach: panel używa dużo mniej gradientów kolorów.
+
 ### 1.18.1 – 2026-11-10
 #### Naprawiono
 - W wyglądzie radzieckiego pulpitu przełącznik ОГР. КРЕНА nie wychodzi już poza ramkę. Pole jest wyższe, a panel nieco urósł na dole.
@@ -299,6 +343,28 @@ Versions follow [Semantic Versioning](https://semver.org/). The ready-to-use pac
 ---
 
 ## Русский
+
+### 1.25.5 – 2026-11-11
+Версии 1.18.2–1.25.4 были тестовыми и не публиковались; эта запись охватывает их все. В ZIP теперь два мода: `ap28-autopilot-panel` 1.25.5 и новый `ap28-pa3-planshet` 1.0.4.
+#### Добавлено
+- **Система посадки СНПС «Курс-С»** (вымышленная, в советском стиле), встроенная в панель:
+  - Выключатель под красной крышкой с окошком, показывающим его положение, жёлтая лампа над ним и самоконтроль около 3 с после включения.
+  - Индикатор на газоразрядных лампах с кодом ICAO аэродрома. **АЭР** перебирает ближайшие аэродромы (от ближайшего, в конце АВТ); **ВВОД** фиксирует аэродром.
+  - Барабан **ВПП**: выбор полосы на этом аэродроме. Работает и после ВВОД, блокируется только после нажатия ЗАХОД.
+  - Прибор **КПП** (курс и глиссада), барабаны **ДАЛЬН** (дальность) и **ГЛИС** (угол глиссады), табло ГОТОВ / КУРС / ГЛИС / ВПР.
+  - **ЗАХОД**: автопилот выводит самолёт в точку входа на продолжении оси ВПП (не ближе 6 NM, дальше при большей высоте), перехватывает ось под углом до 30°, затем захватывает глиссаду снизу. КУРС / НВУ гаснут, когда ЗАХОД берёт боковой канал; ВЫСОТА / ВС работают до захвата глиссады.
+  - Переключатель **ПОСАДКА ВПР / АВТ**: отключение на высоте принятия решения (60 м) или автоматическая посадка с выравниванием по радиовысоте, уборкой РУД и отключением после касания.
+  - Барабан **СКОР** над КПП: заданная скорость автомата тяги (затемнён и показывает приборную скорость, когда АТ выключен).
+  - Кнопка **КОНТР. ЛАМП** (контроль ламп).
+  - Выбранная полоса передаётся в переменные `L:AP28_SN_*` для ПА-3.
+- **Речевой информатор РИ-65** (женский голос): захват курса и глиссады, ВПР, 30/20/10/5 м, отключение АП, автоматическая посадка, касание. Также звуки крышки, переключателей и кнопок. Воспроизводит панель, а запасным путём — плагин stream deck.
+- **ПА-3 Планшет** (новый отдельный мод `ap28-pa3-planshet`, своё окно): бумажная карта с пером, которое рисует траекторию полёта, аэродромы и полосы из базы симулятора и ось захода СНПС.
+#### Изменено
+- **Перемещение РУД теперь отключает только автомат тяги**, автопилот продолжает работать (`AP_CONFIG.throttleDisconnectsAP: false`). Движение штурвала больше не отключает АТ.
+- Ручка ОГР. КРЕНА стала реалистичнее, а на советском пульте стоит рядом с барабаном КУРС ЗАД.
+- Советский пульт стал ниже примерно на 25%, СНПС помещается в одном компактном ряду.
+#### Исправлено
+- Смена цвета некоторых элементов (шкала ВЭМ, табло, клавиши) в симуляторе после щелчков: панель использует гораздо меньше цветовых градиентов.
 
 ### 1.18.1 – 2026-11-10
 #### Исправлено

@@ -1,0 +1,13 @@
+/* PA-3 Planshet - okno. Caly wyglad jest budowany w AP28PA3.js. */
+ap28-pa3 {
+    display: block;
+}
+#pa3-root {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    box-sizing: border-box;
+    padding: 4px;
+    overflow-x: hidden;
+    overflow-y: auto;
+}
