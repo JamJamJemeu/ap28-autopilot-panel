@@ -8,6 +8,10 @@
 |---|---|
 | ![Soviet cockpit skin](docs/panel-sov.jpg) | ![AP-28L1 replica skin](docs/panel-an28.jpg) |
 
+| ПА-3 Планшет (separate window) |
+|:---:|
+| <img src="docs/panel-pa3.jpg" alt="ПА-3 Планшет" width="480"> |
+
 ---
 
 ## English
